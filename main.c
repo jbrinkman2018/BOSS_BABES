@@ -1,14 +1,14 @@
 #include <xc.h>
 
 #pragma config FNOSC = LPFRC     // 500kHz occiltor
- // I hope this works
+ 
 // Global variables
 int steps = 0;
 
 
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
-       _OC1IF = 0; 
+    _OC1IF = 0; //take down flag
     steps=steps+1;
 }
 
@@ -17,19 +17,32 @@ int main()
 {
 
 //----------------configure the Stepper/PWM-------------------
-   //Configure the postscaler on the microchip
-   _RCDIV = 000;
-    // Set period and duty cycle
-    OC1RS = 2000;
-    OC2RS = 2000;
-    //Number of counts for Duty Cycle
-    OC1R = 750;
-    OC2R = 750;
-    // Clear control bits
+   //Configure the postscaler on the microchip to be /1
+   _RCDIV = 0b000;
+   
+   // clear all pins 
+   
+   TRISA = 0;
+   TRISB = 0;
+   LATA = 0;
+   LATB = 0;
+   ANSA = 0;
+   ANSB = 0;
+   
+   // Clear control bits
+   
     OC1CON1 = 0;
     OC1CON2 = 0;
     OC2CON1 = 0;
     OC2CON2 = 0;
+    
+    // Set period
+    OC1RS = 1500;
+    OC2RS = 1500;
+    
+    //Number of counts for Duty Cycle. This is arbitrary for steppers
+    OC1R = 750;
+    OC2R = 750;
     
     // Configure OC1
     OC1CON1bits.OCTSEL = 0b111;
@@ -37,7 +50,7 @@ int main()
     OC1CON2bits.OCTRIG = 0;     
     OC1CON1bits.OCM = 0b110; 
     //Configure OC2
-    OC1CON1bits.OCTSEL = 0b111;
+    OC2CON1bits.OCTSEL = 0b111;
     OC2CON2bits.SYNCSEL = 0x1F; 
     OC2CON2bits.OCTRIG = 0;     
     OC2CON1bits.OCM = 0b110;
@@ -45,9 +58,10 @@ int main()
 //-------------------Configure Timer--------------------------
 
 // Configure Timer1
-    _TON = 1;       // Turn Timer1 on
+//    _TON = 1;       // Turn Timer1 on
+    T1CON = 0;
     _TCKPS = 0b11;  // 1:256
-    _TCS = 0;       // Internal clock source (FOSC/2)
+    _TCS = 0;       // Internal clock source (FOSC/2) ERROR
     TMR1 = 0;       // Reset Timer1
     _TON = 0;       // Turn Timer1 off
 
@@ -64,27 +78,29 @@ int main()
 //------------------------loop-------------------------------
     // States
     enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND } state;
-    
+    state = FORWARD;
     _TON = 1;
     while(1)
     {
-    if (state == FORWARD)
-        {
-    OC1RS = 2000;
-    OC2RS = 2000;
-    OC1R = 750;
-    OC2R = 750;
+        if (state == FORWARD)
+            {
+            OC1RS = 1500;
+            OC2RS = 1500;
+            OC1R = 750;
+            OC2R = 750;
             if(TMR1>2929)
             {
                 //turn off the timer
                 _TON =0;
                 //Change the direction of one of the motors
                 _LATB9=1;
-                //start counting steps
+                //start count
+                //Determining steps
+                steps = 0;
+                N = 126;
                 _OC1IE =1;
                 //Determine the number of steps for turn
-                N = 700;
-                steps = 0;
+
                 state = LEFT90;
             }
         }
@@ -101,9 +117,7 @@ int main()
             //Stop counting steps
             _OC1IE=0;
             N=0;
-            state = SECONDTIME;
-            
-            
+            state = SECONDTIME;            
             }
         }  
     if (state == SECONDTIME)
@@ -114,28 +128,28 @@ int main()
             
             _LATB9 = 1;
             
-            N=1400;
+            N=252;
             
             steps=0;
             
             _OC1IE=1;
-            state == TURNAROUND;
+            state = TURNAROUND;
             }
             
     }
-      if (state == TURNAROUND)
-{
+      if (state == TURNAROUND) {
         if(steps>N)
         {
-        _LATB9= 1;
-        TMR1 =0;
+        _LATB9= 0;
+        TMR1 = 0;
         _TON=1;
-state = FORWARD;
+        _OC1IE = 0 ;
+        state = FORWARD;
         }
-
-}      
+    }      skglkasjdlkgaslkdgaksdg;lk
+    alsglkasglahsd'lkg'
        
-        }
+    }
          
     return 0;
     
