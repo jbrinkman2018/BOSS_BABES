@@ -146,8 +146,7 @@ int main()
         _OC1IE = 0 ;
         state = FORWARD;
         }
-    }      skglkasjdlkgaslkdgaksdg;lk
-    alsglkasglahsd'lkg'
+    }     
        
     }
          
