@@ -8,7 +8,7 @@ int steps = 0;
 
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
-    _OC1IF = 0; //take down flag
+    _OC1IF = 0; 
     steps=steps+1;
 }
 
@@ -17,11 +17,9 @@ int main()
 {
 
 //----------------configure the Stepper/PWM-------------------
-   //Configure the postscaler on the microchip to be /1
-   _RCDIV = 0b000;
-   
+   //Configure the postscaler on the microchip
+   _RCDIV = 000;
    // clear all pins 
-   
    TRISA = 0;
    TRISB = 0;
    LATA = 0;
@@ -36,11 +34,12 @@ int main()
     OC2CON1 = 0;
     OC2CON2 = 0;
     
-    // Set period
+    // Set period and duty cycle
+    
     OC1RS = 1500;
     OC2RS = 1500;
     
-    //Number of counts for Duty Cycle. This is arbitrary for steppers
+    //Number of counts for Duty Cycle
     OC1R = 750;
     OC2R = 750;
     
@@ -61,7 +60,7 @@ int main()
 //    _TON = 1;       // Turn Timer1 on
     T1CON = 0;
     _TCKPS = 0b11;  // 1:256
-    _TCS = 0;       // Internal clock source (FOSC/2) ERROR
+    _TCS = 0;       // Internal clock source (FOSC/2)
     TMR1 = 0;       // Reset Timer1
     _TON = 0;       // Turn Timer1 off
 
@@ -146,7 +145,7 @@ int main()
         _OC1IE = 0 ;
         state = FORWARD;
         }
-    }     
+    }      
        
     }
          
