@@ -30,7 +30,7 @@ int isTimerUp = 0;
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
-    _OC1IF = 0; //take down flag
+    _OC1IF = 0; 
     steps=steps+1;
 }
 
@@ -95,7 +95,7 @@ void configPWM(){
     RMSPEED = 1500;
     LMSPEED = 1500;
     
-    //Number of counts for Duty Cycle. This is arbitrary for steppers
+    //Number of counts for Duty Cycle
     OC1R = 750;
     OC2R = 750;
     
@@ -109,15 +109,8 @@ void configPWM(){
     OC2CON2bits.SYNCSEL = 0x1F; 
     OC2CON2bits.OCTRIG = 0;     
     OC2CON1bits.OCM = 0b110;
-    
-    _OC1IP = 4; // Select OCx interrupt priority
-    _OC1IE = 0; // disable OCx interrupt to start
-    _OC1IF = 0; // Clear OCx interrupt flag
-    
-    _OC2IP = 4; // Select OCx interrupt priority
-    _OC2IE = 0; // disable OCx interrupt to start
-    _OC2IF = 0; // Clear OCx interrupt flag
-}
+
+//-------------------Configure Timer--------------------------
 
 void configTimer(){
     T1CON = 0;
