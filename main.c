@@ -109,7 +109,7 @@ void configPWM(){
     OC2CON2bits.SYNCSEL = 0x1F; 
     OC2CON2bits.OCTRIG = 0;     
     OC2CON1bits.OCM = 0b110;
-
+}
 //-------------------Configure Timer--------------------------
 
 void configTimer(){
