@@ -1,44 +1,99 @@
-#include <xc.h>
+/*
+ * File:   LightSensors.c
+ * Author: hjone
+ *
+ * Created on October 20, 2022, 3:51 PM
+ */
+//NOTE make sure to fix the _css
+#define QRDEND ADC1BUF //pin 
+#define QRDLEFT ADC1BUF4//pin6 or B2
+#define QRDMIDDLE ADC1BUF13//pin7 or A2
+//#define QRDRIGHT ADC1BUF14 //pin8 or A3 THIS one is the plan, but it is outputting pwm??
+#define QRDRIGHT ADC1BUF11 //pin16 or b13 
+//#define QRDTASK ADC1BUF11 //pin 16 or B13
+#define QRDBALL ADC1BUF0 // pin2 or A0
+#define RMSPEED OC1RS
+#define LMSPEED OC2RS
+#include "xc.h"
+#pragma config ICS = PGx3
+#pragma config FNOSC = LPFRC //500khz osc
+//#pragma config FWDTEN=OFF
+//#pragma config WINDIS=OFF
+////#pragma config MCLRE = OFF //see useful tips to understand when to use this
+//#pragma config OSCIOFNC = OFF
+//#pragma config SOSCSRC = DIG
 
-#pragma config FNOSC = LPFRC     // 500kHz occiltor
- 
-// Global variables
+//Global variables
 int steps = 0;
+int isTimerUp = 0;
 
-
+//Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
     _OC1IF = 0; //take down flag
     steps=steps+1;
 }
 
-
-int main()
+void _ISR _T1Interrupt(void)
 {
+_T1IF = 0; // Clear interrupt flag
+isTimerUp = 1;
+// Do something here
+}
 
-//----------------configure the Stepper/PWM-------------------
-   //Configure the postscaler on the microchip to be /1
-   _RCDIV = 0b000;
-   
-   // clear all pins 
-   
-   TRISA = 0;
-   TRISB = 0;
-   LATA = 0;
-   LATB = 0;
-   ANSA = 0;
-   ANSB = 0;
-   
-   // Clear control bits
-   
+//Configure Functions --------------------------------
+void config_ad(void)
+{
+    //clear the registers
+        AD1CON1 = 0;
+    AD1CON2 = 0;
+    AD1CON3 = 0;
+    AD1CON5 = 0;
+    AD1CSSL = 0;
+    AD1CSSH = 0;
+    
+    _ADON = 0;    // AD1CON1<15> -- Turn off A/D during config
+    
+    // AD1CON1 register
+    _ADSIDL = 0;  // AD1CON1<13> -- A/D continues in idle mode
+    _MODE12 = 1;  // AD1CON1<10> -- 12-bit A/D operation
+    _FORM = 0;    // AD1CON1<9:8> -- Unsigned integer output
+    _SSRC = 7;    // AD1CON1<7:4> -- Auto conversion (internal counter)
+    _ASAM = 1;    // AD1CON1<2> -- Auto sampling
+
+    // AD1CON2 register
+    _PVCFG = 0;   // AD1CON2<15:14> -- Use VDD as positive ref voltage
+    _NVCFG = 0;   // AD1CON2<13> -- Use VSS as negative ref voltage
+    _BUFREGEN = 1;// AD1CON2<11> -- Result appears in buffer location corresponding to channel
+    _CSCNA = 1;   // AD1CON2<10> -- Scans inputs specified in AD1CSSx registers
+    _SMPI = 2;	  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
+    _ALTS = 0;    // AD1CON2<0> -- Sample MUXA only
+
+    // AD1CON3 register
+    _ADRC = 0;    // AD1CON3<15> -- Use system clock
+    _SAMC = 0;    // AD1CON3<12:8> -- Auto sample every A/D period TAD
+    _ADCS = 0x3F; // AD1CON3<7:0> -- A/D period TAD = 64*TCY
+
+    // AD1CSS registers
+    // SET THE BITS CORRESPONDING TO CHANNELS THAT YOU WANT
+    // TO SAMPLE
+    _CSS4 = 1; // THE 4 corresponds to the AN# on the data sheet for the pin
+    _CSS13 = 1;
+    _CSS11 = 1;
+
+    _ADON = 1;    // AD1CON1<15> -- Turn on A/D
+}
+
+void configPWM(){
+    // Clear control bits
     OC1CON1 = 0;
     OC1CON2 = 0;
     OC2CON1 = 0;
     OC2CON2 = 0;
     
     // Set period
-    OC1RS = 1500;
-    OC2RS = 1500;
+    RMSPEED = 1500;
+    LMSPEED = 1500;
     
     //Number of counts for Duty Cycle. This is arbitrary for steppers
     OC1R = 750;
@@ -54,102 +109,108 @@ int main()
     OC2CON2bits.SYNCSEL = 0x1F; 
     OC2CON2bits.OCTRIG = 0;     
     OC2CON1bits.OCM = 0b110;
+    
+    _OC1IP = 4; // Select OCx interrupt priority
+    _OC1IE = 0; // disable OCx interrupt to start
+    _OC1IF = 0; // Clear OCx interrupt flag
+    
+    _OC2IP = 4; // Select OCx interrupt priority
+    _OC2IE = 0; // disable OCx interrupt to start
+    _OC2IF = 0; // Clear OCx interrupt flag
+}
 
-//-------------------Configure Timer--------------------------
-
-// Configure Timer1
-//    _TON = 1;       // Turn Timer1 on
+void configTimer(){
     T1CON = 0;
     _TCKPS = 0b11;  // 1:256
-    _TCS = 0;       // Internal clock source (FOSC/2) ERROR
+    _TCS = 0;       // Internal clock source 31khz
     TMR1 = 0;       // Reset Timer1
     _TON = 0;       // Turn Timer1 off
+    
+        // Configure Timer1 interrupt
+    _T1IP = 4; // Select interrupt priority
+    _T1IF = 0; // Clear interrupt flag
+    _T1IE = 1; // Enable interrupt
+    PR1 = 2929; // Timer period of 9688 or 5 sec 
+}
 
+// Main Function ------------------------------------------------------------------
 
-    int N = 0;              // Desired steps
- //-------------------Configure Pins-------------------------   
- //THESE ARE MY TWO PINS FOR THE DIRECTION
-     _TRISA1 = 0;
-     _LATA1 = 0;
-
-    _TRISB9 = 0;
+int main(void) {
+     //Configure the postscaler on the microchip
+   _RCDIV = 0b000;
+   
+   //configure pins
+   
+//    ANSB = 00010001100;//b15-b0
+//    ANSA = 001101; //A6-A0
+//    TRISB = 01010011100; //B15-B0
+//    TRISA = 001101;//A6-A0
+   TRISA = 0;
+   TRISB = 0;
+   LATA = 0;
+   LATB = 0;
+   ANSA = 0;
+   ANSB = 0;
+   
+  _ANSB2 = 1;
+    _TRISB2 = 1; 
+    _ANSB13 = 1;
+    _TRISB13 = 1;
+     _ANSA2 = 1;
+    _TRISA2 = 1; 
+    
+    _ANSB0 = 0;
+    _TRISB0 = 0;
+    
+    _ANSB15 = 0;
+    _TRISB15 = 0;
+    _ANSB14 = 0;
+    _TRISB14 = 0;
+    
+    //Set motors to zero initially
+    _LATA1 = 0;
     _LATB9 = 0;
+
+ //initialize variables ---------------------------------------------------------
+    int N = 0;//step counter
+    int threshold = 1250; //QRD threshold
+    
+
+// Call Configurations -----------------------------------------------------------
+    config_ad();
+    configPWM();
+//    configTimer();
+    
+// States ----------------------------------------------------------------
+    enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND} state;
+    state = FORWARD;
+    
+// Set Initial Values ----------------------------------------------------------
+//    _TON = 1;
+    RMSPEED = 1500;
+    LMSPEED = 1500; // ERROR, MAKE THIS 1500
+    OC1R = 750;
+    OC2R = 750;
+    
     
 //------------------------loop-------------------------------
-    // States
-    enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND } state;
-    state = FORWARD;
-    _TON = 1;
-    while(1)
-    {
-        if (state == FORWARD)
-            {
-            OC1RS = 1500;
-            OC2RS = 1500;
-            OC1R = 750;
-            OC2R = 750;
-            if(TMR1>2929)
-            {
-                //turn off the timer
-                _TON =0;
-                //Change the direction of one of the motors
-                _LATB9=1;
-                //start count
-                //Determining steps
-                steps = 0;
-                N = 126;
-                _OC1IE =1;
-                //Determine the number of steps for turn
 
-                state = LEFT90;
-            }
-        }
-    if (state == LEFT90)
-        {
-            if(steps>N)
-            {
-            //Reset timer
-            TMR1=0;
-            //turn timer on
-            _TON=1;
-            //same direction for both motors
-            _LATB9=0;
-            //Stop counting steps
-            _OC1IE=0;
-            N=0;
-            state = SECONDTIME;            
-            }
-        }  
-    if (state == SECONDTIME)
-    {
-            if (TMR1>2929)
-            {
-            _TON=0;
-            
-            _LATB9 = 1;
-            
-            N=252;
-            
-            steps=0;
-            
-            _OC1IE=1;
-            state = TURNAROUND;
-            }
-            
-    }
-      if (state == TURNAROUND) {
-        if(steps>N)
-        {
-        _LATB9= 0;
-        TMR1 = 0;
-        _TON=1;
-        _OC1IE = 0 ;
-        state = FORWARD;
-        }
-    }     
-       
-    }
+    while(1){
          
+        
+        if(QRDRIGHT > threshold ){//see black
+            RMSPEED = 0;     
+        }
+        else{
+            RMSPEED = 1500;
+        }
+        if(QRDLEFT > threshold ){//see black
+            LMSPEED = 0;
+        }
+        else{
+            LMSPEED = 1500;    
+        }
+        
+    }    
     return 0;
-    
-    }
+}
