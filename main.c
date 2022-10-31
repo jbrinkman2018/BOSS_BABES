@@ -68,7 +68,7 @@ while (steps<N){
     }
 }
 
-void turnLeft(int N){
+void theEnd(int N){
     //Change the direction of one of the motors
    // _LATB9=1;
 //    //start count
@@ -84,6 +84,85 @@ void turnLeft(int N){
     LMSPEED = 0;
     RMSPEED = 0;
     while(1){}
+   
+}
+
+
+
+// Main Function ------------------------------------------------------------------
+int main(void) {
+     //Configure the postscaler on the microchip
+   _RCDIV = 0b000;
+   
+   //configure pins
+   
+//    ANSB = 00010001100;//b15-b0
+//    ANSA = 001101; //A6-A0
+//    TRISB = 01010011100; //B15-B0
+//    TRISA = 001101;//A6-A0
+   TRISA = 0;
+   TRISB = 0;
+   LATA = 0;
+   LATB = 0;
+   ANSA = 0;
+   ANSB = 0;
+   
+  _ANSB2 = 1;
+    _TRISB2 = 1;
+    _ANSB13 = 1;
+    _TRISB13 = 1;
+     _ANSA2 = 1;
+    _TRISA2 = 1;
+    _ANSA3 = 1;
+    _TRISA3 = 1;
+    _ANSA0 = 1;
+    _TRISA0 = 1;
+    _ANSB12 = 1;
+    _TRISB12 = 1;
+   
+    _ANSB0 = 0;
+    _TRISB0 = 0;
+   
+    _ANSB15 = 0;
+    _TRISB15 = 0;
+//    _ANSA4 = 0;
+    _TRISA4 = 0;
+   
+    //Set motors to zero initially
+    _LATA1 = 0;
+    _LATB9 = 0;
+
+ //initialize variables ---------------------------------------------------------
+    int N = 0;//step counter
+    int threshold = 1250; //QRD threshold
+   
+
+// Call Configurations -----------------------------------------------------------
+    config_ad();
+    configPWM();
+//    configTimer();
+   
+// States ----------------------------------------------------------------
+    enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND, END} state;
+    state = FORWARD;
+   
+// Set Initial Values ----------------------------------------------------------
+//    _TON = 1;
+    RMSPEED = 1500;
+    LMSPEED = 1500; // ERROR, MAKE THIS 1500
+    OC1R = 750;
+    OC2R = 750;
+   
+   
+//------------------------loop-------------------------------
+
+    while(1){
+//        if(state == FORWARD){
+           
+             if(QRDEND > threshold){ //see black
+                   
+                 theEnd(N);
+        }
              else{
                  _LATB9 = 0;
                  _LATB1 = 0;
@@ -116,8 +195,6 @@ void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void){
 }
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void){
     _OC2IF = 0; //take down flag
-
-
     steps=steps+1;
 }
 void _ISR _T1Interrupt(void){
