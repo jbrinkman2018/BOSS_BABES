@@ -15,6 +15,8 @@
 #define SWITCHDIRCOUNT 1050
 #define READJUST 50
 
+#define LED _LATB1
+#define LED2 _LATA4
 #include "xc.h"
 
 #pragma config ICS = PGx3
@@ -77,7 +79,7 @@ void goBackwards(int N){
 }
 
 void forwardAdjust(int N){
-        steps = 0;
+    steps = 0;
 
     while (steps<N){
         LMSPEED = LMFWDSPEED;
@@ -98,7 +100,7 @@ void resetDefaultMotors(){
         _LATB9 = 0;
 }
 
-void theEnd(int N){
+void theEnd(){
     //Change the direction of one of the motors
    // _LATB9=1;
 //    //start count
@@ -106,7 +108,7 @@ void theEnd(int N){
 //    //Determining steps
 //        //Determine the number of steps for turn
    
-    N = 580;//half a square
+    int N = 580;//half a square
     forwardAdjust(N);
     N = 1008;    //original number 126; value for 90 degrees and full square
     turnRight(N);
@@ -117,6 +119,39 @@ void theEnd(int N){
    
 }
 
+
+int countLines(){
+    //initialization
+    RMSPEED = RMFWDSPEED;
+    LMSPEED = LMFWDSPEED;
+    
+    int count = 1;
+    int N = 600;//how far the bot goes to pass 3 lines, abt 1/3 a block
+    steps = 0;//reset
+    _OC1IE = 1;//start count
+    int onBlack = 0;
+//    LED = 0;
+    //check 
+    
+    while(steps < N){
+        if(QRDTASK > threshold ){//task sees black
+            //bool = true
+            onBlack = 1;        
+        }
+        if(onBlack == 1 && QRDTASK < threshold){
+            //bool = false
+            onBlack = 0;
+            count ++;        //add to count
+        }
+    }
+    
+    return count;
+    
+}
+
+//3 lines = sample return
+    //2 line = sample collect
+    //4 lines = canyon
 
 
 // Main Function ------------------------------------------------------------------
@@ -137,7 +172,7 @@ int main(void) {
    ANSA = 0;
    ANSB = 0;
    
-    _ANSB2 = 1;
+  _ANSB2 = 1;
     _TRISB2 = 1;
     _ANSB13 = 1;
     _TRISB13 = 1;
@@ -168,18 +203,20 @@ int main(void) {
  //initialize variables ---------------------------------------------------------
     int N = 0;//step counter
     int threshold = 1250; //QRD threshold
+    int numLines = 0;
    
 
 // Call Configurations -----------------------------------------------------------
     config_ad();
     configPWM();
-//    configTimer();
+    configTimer();
    
 // States ----------------------------------------------------------------
-    enum { LINE, CANYON} state;
+    enum {LINE, CANYON, END, TASK, CHECKLINE} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
     state = LINE;
+    
    
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -191,35 +228,87 @@ int main(void) {
 //------------------------loop-------------------------------
 
     while(1){
-//        if(state == FORWARD){
         switch (state) {
             case LINE:
                 _OC1IE = 0;
-//                if(QRDEND > threshold){ //see black  
-//                    theEnd(N);
-//                }
-//                else{
-//                    _LATB9 = 0;
-//                    _LATB1 = 0;
-//                    _LATA1 = 0;
-//                }
-                if(QRDRIGHT > threshold && QRDLEFT < threshold){//see black
+                LED2 = 0;//signifies that we are back in the line function
+                    
+                //turn off the test LED
+                if(TMR1 > 800*numLines){
+                    LED = 0;
+                }
+                
+                if(QRDEND > threshold){ //END sees black
+                     TMR1 = 0;
+                     state = END;
+                }else{
+                     _LATB9 = 0;
+                     _LATA1 = 0;
+                 }
+                
+                //if you see 3 lines, stop to drop the ball
+                //ERROR MAKE numLINES INTO A SWITCH
+                if(numLines == 3){
                     RMSPEED = 0;
+                    LMSPEED = 0;
+                    while(1){ }//ERROR make this a timer
+                }
+                if(numLines == 4){
+                    state = CANYON;
+                }
+                
+                if(QRDTASK > threshold){//task sees black
+                    //start timer
+                    _TON = 1;
+                    TMR1 = 0;
+                    state = TASK;
+                    LED2 = 1;
+                }else{
+                    //                 LED = 0;
+                }
+                
+                //Line following -------------------------------------------------
+                if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
+                    RMSPEED = 0;    
                 }
                 else{
                     RMSPEED = RMFWDSPEED;
                 }
-                if(QRDLEFT > threshold && QRDRIGHT < threshold){//see black
+                if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
                     LMSPEED = 0;
                 }
                 else{
                     LMSPEED = LMFWDSPEED;    
                 }
-                if (QRDLEFT < threshold && QRDRIGHT < threshold && QRDMIDDLE < threshold) {
-                    canyon_state = FORWARD;
-                    state = CANYON;
+                
+                break;
+                            
+                
+            // this makes sure that task is not incorrectly triggered
+            case TASK:
+                if(QRDTASK < threshold){//task sees white
+                    if(TMR1 > 110){
+                        LED = 1;
+                        numLines = countLines();
+                    }
+                    state = LINE;
+                    TMR1 = 0;
+    //                _TON = 0;
                 }
                 break;
+                
+            // this makes sure that end is not incorrectly triggered
+            case END:
+                if(QRDEND < threshold){//task sees white
+                    if(TMR1 > 90){
+                        theEnd();
+                    }
+                    state = LINE;
+                    TMR1 = 0;
+    //                _TON = 0;
+                }
+                break;
+                
             case CANYON:
                 _OC1IE =1;
                 switch(canyon_state) {
@@ -271,17 +360,32 @@ int main(void) {
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                       }
-                      break;
+                      break;    
                 }
                 if (QRDLEFT > threshold || QRDRIGHT > threshold) {
-                    forwardAdjust(145);
-                    turnRight(TURNNINETY);
-                    delay(2000);
-                    state = LINE;
+                    state = CHECKLINE;
+                    TMR1 = 0;
+                    _TON = 1;
+                } 
+                LED = 0;
+                break;  
+            case CHECKLINE:
+                if(QRDLEFT < threshold && QRDRIGHT < threshold){//both see white
+                    if(TMR1 > 50){
+                        forwardAdjust(145);
+                        turnRight(TURNNINETY);
+                        delay(2000);
+                        state = LINE;
+                    }else{
+                        LED = 1;
+                        state = CANYON;
+                    }
+                    TMR1 = 0;
+                    _TON = 0;
                 }
                 break;
         }
-    }    
+    }
     return 0;
 }
 
@@ -303,7 +407,7 @@ isTimerUp = 1;
 //Configure Functions --------------------------------
 void config_ad(void){
     //clear the registers
-    AD1CON1 = 0;
+        AD1CON1 = 0;
     AD1CON2 = 0;
     AD1CON3 = 0;
     AD1CON5 = 0;
@@ -393,4 +497,3 @@ void configTimer(){
     _T1IE = 1; // Enable interrupt
     PR1 = 2929; // Timer period of 9688 or 5 sec
 }
-
