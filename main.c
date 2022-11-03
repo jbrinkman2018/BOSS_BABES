@@ -30,6 +30,7 @@
 //Global variables
 int steps = 0;
 int isTimerUp = 0;
+int threshold = 1250; //QRD threshold
 
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void);
