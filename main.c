@@ -1,10 +1,3 @@
-/*
- * File:   LightSensors.c
- * Author: hjone
- *
- * Created on October 20, 2022, 3:51 PM
- */
-//NOTE make sure to fix the _css
 #define QRDEND ADC1BUF12 //pin15 or B12
 #define QRDLEFT ADC1BUF4//pin6 or B2
 #define QRDMIDDLE ADC1BUF13//pin7 or A2
@@ -16,7 +9,14 @@
 #define QRDBALL ADC1BUF14 // pin8 or A3
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
+#define RMFWDSPEED 313
+#define LMFWDSPEED 313
+#define TURNNINETY 900
+#define SWITCHDIRCOUNT 1050
+#define READJUST 50
+
 #include "xc.h"
+
 #pragma config ICS = PGx3
 #pragma config FNOSC = LPFRC //500khz osc
 #pragma config FWDTEN=OFF
@@ -41,31 +41,60 @@ void configTimer();
 
 //Action Functions--------------------------------------------------------------
 void turnRight(int N){
-        steps = 0;  //restart step count
+    steps = 0;  //restart step count
+    while(steps<N){
+        LMSPEED = 0;
+        _LATB9=1;
+        _LATA1 = 0;
+    }
+}
+void turnRight2(int N){
+    steps = 0;  //restart step count
+    while(steps<N){
+        _LATB9=1;
+        _LATA1 = 0;
+    }
+}
+void turnLeft(int N){
+    steps = 0;  //restart step count
     while(steps<N){
         _LATB1 = 1;
         LMSPEED = 0;
-        _LATB9=1;
+        _LATA1=1;
+        _LATB9 = 0;
     }
 }
 
 void goBackwards(int N){
     steps = 0;
     while(steps<N){
-        _LATB1 = 1;
+        _LATB9 = 1;
         _LATA1 = 1;
-        LMSPEED = 1500;
-        RMSPEED = 1500;
+        LMSPEED = LMFWDSPEED;
+        RMSPEED = RMFWDSPEED;
     }
 }
 
 void forwardAdjust(int N){
         steps = 0;
 
-while (steps<N){
-        LMSPEED = 1500;
-        RMSPEED = 1500;
+    while (steps<N){
+        LMSPEED = LMFWDSPEED;
+        RMSPEED = RMFWDSPEED;
     }
+}
+
+void delay (int s) {
+    int k = 0;
+    while (k<s)
+        k++;
+}
+
+void resetDefaultMotors(){
+        LMSPEED = LMFWDSPEED;
+        RMSPEED = RMFWDSPEED;
+        _LATA1 = 0;
+        _LATB9 = 0;
 }
 
 void theEnd(int N){
@@ -76,9 +105,9 @@ void theEnd(int N){
 //    //Determining steps
 //        //Determine the number of steps for turn
    
-    N = 145;//half a square
+    N = 580;//half a square
     forwardAdjust(N);
-    N = 252;    //original number 126; value for 90 degrees and full square
+    N = 1008;    //original number 126; value for 90 degrees and full square
     turnRight(N);
     goBackwards(N);
     LMSPEED = 0;
@@ -107,7 +136,7 @@ int main(void) {
    ANSA = 0;
    ANSB = 0;
    
-  _ANSB2 = 1;
+    _ANSB2 = 1;
     _TRISB2 = 1;
     _ANSB13 = 1;
     _TRISB13 = 1;
@@ -119,12 +148,15 @@ int main(void) {
     _TRISA0 = 1;
     _ANSB12 = 1;
     _TRISB12 = 1;
+    _TRISB7 = 1; // front proximity sensor
+    _TRISB8 = 1; //right proximity sensor
+    _TRISB15 = 1; // left proximity sensor
    
     _ANSB0 = 0;
     _TRISB0 = 0;
    
-    _ANSB15 = 0;
-    _TRISB15 = 0;
+//    _ANSB15 = 0;
+//    _TRISB15 = 0;
 //    _ANSA4 = 0;
     _TRISA4 = 0;
    
@@ -143,47 +175,111 @@ int main(void) {
 //    configTimer();
    
 // States ----------------------------------------------------------------
-    enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND, END} state;
-    state = FORWARD;
+    enum { LINE, CANYON} state;
+    enum {FORWARD,TURNRIGHT} canyon_state;
+    canyon_state = FORWARD;
+    state = LINE;
    
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
-    RMSPEED = 1500;
-    LMSPEED = 1500; // ERROR, MAKE THIS 1500
-    OC1R = 750;
-    OC2R = 750;
-   
+    RMSPEED = RMFWDSPEED;
+    LMSPEED = LMFWDSPEED; // ERROR, MAKE THIS 1500
+    OC1R = LMFWDSPEED/2;
+    OC2R = RMFWDSPEED/2;
    
 //------------------------loop-------------------------------
 
     while(1){
 //        if(state == FORWARD){
-           
-             if(QRDEND > threshold){ //see black
-                   
-                 theEnd(N);
+        switch (state) {
+            case LINE:
+                _OC1IE = 0;
+//                if(QRDEND > threshold){ //see black  
+//                    theEnd(N);
+//                }
+//                else{
+//                    _LATB9 = 0;
+//                    _LATB1 = 0;
+//                    _LATA1 = 0;
+//                }
+                if(QRDRIGHT > threshold && QRDLEFT < threshold){//see black
+                    RMSPEED = 0;
+                }
+                else{
+                    RMSPEED = RMFWDSPEED;
+                }
+                if(QRDLEFT > threshold && QRDRIGHT < threshold){//see black
+                    LMSPEED = 0;
+                }
+                else{
+                    LMSPEED = LMFWDSPEED;    
+                }
+                if (QRDLEFT < threshold && QRDRIGHT < threshold && QRDMIDDLE < threshold) {
+                    canyon_state = FORWARD;
+                    state = CANYON;
+                }
+                break;
+            case CANYON:
+                _OC1IE =1;
+                switch(canyon_state) {
+                    case FORWARD:
+                      if (!_RB7){
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnRight(TURNNINETY);
+                        steps=0;
+                        N = 1060;
+                        resetDefaultMotors();
+                        canyon_state = TURNRIGHT;
+                        }
+                      if (!_RB8) { // right side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnLeft(READJUST);
+                        resetDefaultMotors();
+                        }
+                      if (!_RB15) { // left side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnRight(READJUST);
+                        resetDefaultMotors();
+                        }
+                        break;
+                    case TURNRIGHT:
+                      if (!_RB7){
+                          // full 180 turn and go back forward
+                        turnRight2(SWITCHDIRCOUNT);
+                        resetDefaultMotors();
+                        canyon_state = FORWARD;
+                        }
+                      if (!_RB8) { // right side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnLeft(READJUST);
+                        resetDefaultMotors();
+                        }
+                      if (!_RB15) { // left side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnRight(READJUST);
+                        resetDefaultMotors();
+                        }
+                      if (steps > N) {
+                          // return to forward
+                        N = 0;
+                        resetDefaultMotors();
+                        canyon_state = FORWARD;
+                      }
+                      break;
+                }
+                if (QRDLEFT > threshold || QRDRIGHT > threshold) {
+                    forwardAdjust(145);
+                    turnRight(TURNNINETY);
+                    delay(2000);
+                    state = LINE;
+                }
+                break;
         }
-             else{
-                 _LATB9 = 0;
-                 _LATB1 = 0;
-                 _LATA1 = 0;
-             }
-        if(QRDRIGHT > threshold && QRDLEFT < threshold){//see black
-            RMSPEED = 0;    
-        }
-        else{
-            RMSPEED = 1500;
-        }
-        if(QRDLEFT > threshold && QRDRIGHT < threshold){//see black
-            LMSPEED = 0;
-        }
-        else{
-            LMSPEED = 1500;    
-        }
-//        }
-//        
-//        if(state == END){
-//}
     }    
     return 0;
 }
@@ -206,7 +302,7 @@ isTimerUp = 1;
 //Configure Functions --------------------------------
 void config_ad(void){
     //clear the registers
-        AD1CON1 = 0;
+    AD1CON1 = 0;
     AD1CON2 = 0;
     AD1CON3 = 0;
     AD1CON5 = 0;
@@ -256,12 +352,12 @@ void configPWM(){
     OC2CON2 = 0;
    
     // Set period
-    RMSPEED = 1500;
-    LMSPEED = 1500;
+    RMSPEED = RMFWDSPEED;
+    LMSPEED = LMFWDSPEED;
    
     //Number of counts for Duty Cycle. This is arbitrary for steppers
-    OC1R = 750;
-    OC2R = 750;
+    OC1R = RMSPEED/2;
+    OC2R = LMSPEED/2;
    
     // Configure OC1
     OC1CON1bits.OCTSEL = 0b111;
@@ -296,3 +392,4 @@ void configTimer(){
     _T1IE = 1; // Enable interrupt
     PR1 = 2929; // Timer period of 9688 or 5 sec
 }
+
