@@ -15,8 +15,6 @@
 #define SWITCHDIRCOUNT 1050
 #define READJUST 50
 
-#define LED _LATB1
-#define LED2 _LATA4
 #include "xc.h"
 
 #pragma config ICS = PGx3
@@ -100,7 +98,7 @@ void resetDefaultMotors(){
         _LATB9 = 0;
 }
 
-void theEnd(){
+void theEnd(int N){
     //Change the direction of one of the motors
    // _LATB9=1;
 //    //start count
@@ -119,43 +117,6 @@ void theEnd(){
    
 }
 
-
-int countLines(){
-    //initialization
-    RMSPEED = 375;
-    LMSPEED = 375;
-    
-    int count = 1;
-    int N = 600;//how far the bot goes to pass 3 lines, abt 1/3 a block
-    steps = 0;//reset
-    _OC1IE = 1;//start count
-    int onBlack = 0;
-//    LED = 0;
-    //check 
-    
-    while(steps < N){
-    if(QRDTASK > threshold ){//task sees black
-        //bool = true
-        onBlack = 1;
-//        LED = 1;
-        
-    }
-    if(onBlack == 1 && QRDTASK < threshold){
-        //bool = false
-        onBlack = 0;
-        count ++;
-//        LED = 0;
-        //add to count
-    }
-    }
-    
-    return count;
-    
-}
-
-//3 lines = sample return
-    //2 line = sample collect
-    //4 lines = canyon
 
 
 // Main Function ------------------------------------------------------------------
@@ -176,7 +137,7 @@ int main(void) {
    ANSA = 0;
    ANSB = 0;
    
-  _ANSB2 = 1;
+    _ANSB2 = 1;
     _TRISB2 = 1;
     _ANSB13 = 1;
     _TRISB13 = 1;
@@ -195,8 +156,8 @@ int main(void) {
     _ANSB0 = 0;
     _TRISB0 = 0;
    
-    _ANSB15 = 0;
-    _TRISB15 = 0;
+//    _ANSB15 = 0;
+//    _TRISB15 = 0;
 //    _ANSA4 = 0;
     _TRISA4 = 0;
    
@@ -207,21 +168,18 @@ int main(void) {
  //initialize variables ---------------------------------------------------------
     int N = 0;//step counter
     int threshold = 1250; //QRD threshold
-    int numLines = 0;
    
 
 // Call Configurations -----------------------------------------------------------
     config_ad();
     configPWM();
-    configTimer();
+//    configTimer();
    
 // States ----------------------------------------------------------------
     enum { LINE, CANYON} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
     state = LINE;
-    enum { FORWARD, LEFT90 , SECONDTIME , TURNAROUND, END, TASK} state;
-    state = FORWARD;
    
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -233,6 +191,7 @@ int main(void) {
 //------------------------loop-------------------------------
 
     while(1){
+//        if(state == FORWARD){
         switch (state) {
             case LINE:
                 _OC1IE = 0;
@@ -313,82 +272,15 @@ int main(void) {
                         canyon_state = FORWARD;
                       }
                       break;
-        if(state == FORWARD){
-            LED2 = 0;
-            
-            
-            if(TMR1 > 800*numLines){
-                LED = 0;
-            }
-             if(QRDEND > threshold){ //see black
-                 TMR1 = 0;
-                 state = END;
-//                 theEnd();
-        }
-             else{
-                 _LATB9 = 0;
-                 _LATA1 = 0;
-             }
-        //start, check timer, if its too small, then DONT call function
-            if(numLines == 3){
-                RMSPEED = 0;
-                LMSPEED = 0;
-                while(1){
-                
                 }
                 if (QRDLEFT > threshold || QRDRIGHT > threshold) {
                     forwardAdjust(145);
                     turnRight(TURNNINETY);
                     delay(2000);
                     state = LINE;
-            } 
-            if(QRDTASK > threshold){
-                 //start timer
-                 _TON = 1;
-                 TMR1 = 0;
-                 state = TASK;
-                 LED2 = 1;
-                 
-             }else{
-//                 LED = 0;
-             }
-            if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
-                RMSPEED = 0;    
-            }
-            else{
-                RMSPEED = 375;
-            }
-            if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
-                LMSPEED = 0;
-            }
-            else{
-                LMSPEED = 375;    
-            }
-        }
-        
-        if(state == TASK){
-            if(QRDTASK < threshold){//task sees white
-                if(TMR1 > 110){
-                    LED = 1;
-                    numLines = countLines();
                 }
                 break;
-                state = FORWARD;
-                TMR1 = 0;
-//                _TON = 0;
-            }
         }
-        
-        if(state == END){
-            if(QRDEND < threshold){//task sees white
-                if(TMR1 > 90){
-                    theEnd();
-                }
-                state = FORWARD;
-                TMR1 = 0;
-//                _TON = 0;
-            }
-}
     }    
     return 0;
 }
@@ -411,7 +303,7 @@ isTimerUp = 1;
 //Configure Functions --------------------------------
 void config_ad(void){
     //clear the registers
-        AD1CON1 = 0;
+    AD1CON1 = 0;
     AD1CON2 = 0;
     AD1CON3 = 0;
     AD1CON5 = 0;
@@ -501,3 +393,4 @@ void configTimer(){
     _T1IE = 1; // Enable interrupt
     PR1 = 2929; // Timer period of 9688 or 5 sec
 }
+
