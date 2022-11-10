@@ -15,6 +15,7 @@
 #define SWITCHDIRCOUNT 1050
 #define READJUST 50
 #define PIVOTNINETY 450
+#define SERVOPERIOD 5000
 
 #define AWYLLIKS _LATB1
 #define JHAERYD _LATA4
@@ -29,15 +30,16 @@
 #pragma config SOSCSRC = DIG
 
 //Global variables
+int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
 int threshold = 1250; //QRD threshold
-int lineTime = 10;
+int lineTime = 50;
 
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void);
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void);
-//void _ISR _T1Interrupt(void);
+void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void);
 
 //Configure Functions --------------------------------
 void config_ad(void);
@@ -138,35 +140,52 @@ void theEnd(){
     while(1){}
    
 }
-
+void Sampledump()
+{
+    int right = 1;
+//read ball
+if (_RA3==1)
+    {
+        right=0;
+    }    
+//move ball to either side depending on QRD value
+if (right==0)
+    {
+     OC3R=0;  
+    }
+else
+    {
+     OC3R=2500;  
+    }
+}
 
 int countLines(){
     //initialization
     RMSPEED = RMFWDSPEED;
     LMSPEED = LMFWDSPEED;
-    
+   
     int count = 1;
     int N = 600;//how far the bot goes to pass 3 lines, abt 1/3 a block
     steps = 0;//reset
     _OC1IE = 1;//start count
     int onBlack = 0;
-    
+   
     while(steps < N){
         if(QRDTASK > threshold ){//task sees black
             //bool = true
-            onBlack = 1;   
-            JHAERYD = 0;
+            onBlack = 1;  
+//            JHAERYD = 0;
         }
         if(onBlack == 1 && QRDTASK < threshold){
             //bool = false
             onBlack = 0;
-            JHAERYD = 1;
+//            JHAERYD = 1;
             count ++;        //add to count
         }
     }
     AWYLLIKS = 0;
     return count;
-    
+   
 }
 
 //3 lines = sample return
@@ -191,6 +210,7 @@ int main(void) {
    LATB = 0;
    ANSA = 0;
    ANSB = 0;
+ 
    
   _ANSB2 = 1;
     _TRISB2 = 1;
@@ -208,6 +228,7 @@ int main(void) {
     _TRISB8 = 1; //right proximity sensor
     _TRISB15 = 1; // left proximity sensor
    
+   
     _ANSB0 = 0;
     _TRISB0 = 0;
    
@@ -224,6 +245,8 @@ int main(void) {
     int N = 0;//step counter
     int threshold = 1250; //QRD threshold
     int numLines = 0;
+    int doCollect = 0;
+    int doDrop = 0;
    
 
 // Call Configurations -----------------------------------------------------------
@@ -232,11 +255,11 @@ int main(void) {
     configTimer();
    
 // States ----------------------------------------------------------------
-    enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION} state;
+    enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
     state = LINE;
-    
+//    state = TESTSERVO;
    
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -246,56 +269,88 @@ int main(void) {
     OC2R = RMFWDSPEED/2;
    
 //------------------------loop-------------------------------
+    //start
+    hesitate(800);
+    forwardAdjust(2000);
+    turnLeft2(PIVOTNINETY);
+    resetDefaultMotors();
 
+    //running
     while(1){
         switch (state) {
+           
+            case TESTSERVO:
+              Sampledump();
+                  OC1R = 0;
+                  OC2R = 0;
+            break;    
+           
             case LINE:
                 _OC1IE = 0;
-                JHAERYD = 0;//signifies that we are back in the line function
-                                
-//                if(QRDEND > threshold){ //END sees black
-//                     TMR1 = 0;
-//                     state = END;
-//                }else{
+//                JHAERYD = 0;//signifies that we are back in the line function
+                               
+                if(QRDEND > threshold){ //END sees black
+                     TMR1 = 0;
+                     state = END;
+                }
+//                else{
 //                     _LATB9 = 0;
 //                     _LATA1 = 0;
 //                 }
-                //lines 2
-                //if you see 3 lines, stop to drop the ball
-                //ERROR MAKE numLINES INTO A SWITCH
-                switch (numLines){
-                    case 2:
-                        numLines = 0;
-                        _OC1IE = 1; //eRROR should this be in all of the functions?
-                        forwardAdjust(300); 
+                if(isTimerUp == 1 && doDrop ==1){
+                    JHAERYD = 0;
+                    T2CONbits.TON = 0;
+                    TMR2 = 0;
+                    doDrop = 0;
+                    isTimerUp = 0;
+                        hesitate(800);
+                }
+                if(isTimerUp == 1 && doCollect ==1){
+                    JHAERYD = 0;
+                    T2CONbits.TON = 0;
+                    TMR2 = 0;
+                    doCollect = 0;
+                    isTimerUp = 0;
+                         _OC1IE = 1; //eRROR should this be in all of the functions?
+//                        forwardAdjust(300);
                         turnLeft2(PIVOTNINETY);
                         goBackwards(820);
                         hesitate(800);
                         resetDefaultMotors();
-                        forwardAdjust(850);
+                        forwardAdjust(700);
                         turnRight2(PIVOTNINETY);
                         resetDefaultMotors();
                         _OC1IE = 0;
+                }
+                switch (numLines){
+                    case 2://collect ball
+                       numLines = 0;
+                       JHAERYD = 1;
+                       doCollect = 1;
+                       TMR2 = 0;
+                       T2CONbits.TON = 1;
                         break;
-                    case 3:
+                    case 3://drop ball
                         numLines = 0;
-                        hesitate(2000);
-                        resetDefaultMotors();
+                        doDrop = 1;
+                       JHAERYD = 1;
+                       TMR2 = 0;
+                       T2CONbits.TON = 1;
                     break;
-                    case 4:
+                    case 4://canyon
                         state = CANYON;
                         numLines = 0;
                     break;
                 }
-                
+               
                 if(QRDTASK > threshold){//task sees black
                     //start timer
                     TMR1 = 0;
                     _TON = 1;
                     state = TASK;
-                    JHAERYD = 1;
+//                    JHAERYD = 1;
                 }
-                
+               
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
                     RMSPEED = 0;    
@@ -309,16 +364,16 @@ int main(void) {
                 else{
                     LMSPEED = LMFWDSPEED;    
                 }
-                
+               
                 break;
-                            
-                
+                           
+               
             // this makes sure that task is not incorrectly triggered
             case TASK:
                 if(QRDTASK < threshold){//task sees white
                     _TON = 0;
                     if(TMR1 > lineTime){
-                        JHAERYD = 0;
+//                        JHAERYD = 0;
                         AWYLLIKS = 1;
                         numLines = countLines();
                     }
@@ -327,7 +382,7 @@ int main(void) {
     //                _TON = 0;
                 }
                 break;
-                
+               
             // this makes sure that end is not incorrectly triggered
             case END:
                 if(QRDEND < threshold){//task sees white
@@ -340,7 +395,7 @@ int main(void) {
     //                _TON = 0;
                 }
                 break;
-                
+               
             case COLLECTION:
                 if (QRDLEFT > threshold || QRDRIGHT > threshold) { //EITHER sees black
                         state = CHECKLINE;
@@ -348,7 +403,7 @@ int main(void) {
                         _TON = 1;
                     }
                 break;
-                
+               
             case CANYON:
                 _OC1IE =1;
                 switch(canyon_state) {
@@ -406,7 +461,7 @@ int main(void) {
                     state = CHECKLINE;
                     TMR1 = 0;
                     _TON = 1;
-                } 
+                }
                 break;  
             case CHECKLINE:
                 if(QRDLEFT < threshold && QRDRIGHT < threshold){//both see white
@@ -437,11 +492,11 @@ void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void){
     _OC2IF = 0; //take down flag
     steps=steps+1;
 }
-//void _ISR _T1Interrupt(void){
-//_T1IF = 0; // Clear interrupt flag
-//isTimerUp = 1;
-//// Do something here
-//}
+void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void){
+_T2IF = 0; // Clear interrupt flag
+isTimerUp = 1;
+// Do something here
+}
 
 //Configure Functions --------------------------------
 void config_ad(void){
@@ -488,7 +543,10 @@ void config_ad(void){
     _ADON = 1;    // AD1CON1<15> -- Turn on A/D
 }
 
+
+
 void configPWM(){
+    //Configure Values for Stepper motors
     // Clear control bits
     OC1CON1 = 0;
     OC1CON2 = 0;
@@ -515,12 +573,29 @@ void configPWM(){
     OC2CON1bits.OCM = 0b110;
    
     _OC1IP = 4; // Select OCx interrupt priority
-    _OC1IE = 0; // disable OCx interrupt to start
+    _OC1IE = 1; // disable OCx interrupt to start
     _OC1IF = 0; // Clear OCx interrupt flag
    
     _OC2IP = 4; // Select OCx interrupt priority
     _OC2IE = 0; // disable OCx interrupt to start
     _OC2IF = 0; // Clear OCx interrupt flag
+   
+   
+    //CONFIGURE PWM FOR SERVOS
+    OC3CON1 = 0;
+    OC3CON2 = 0;
+   
+    _TRISB1= 0;
+   
+    OC3R = 2500;
+    OC3RS= SERVOPERIOD;
+   
+    //Configure OC 3
+    OC3CON1bits.OCTSEL = 0b111;
+    OC3CON2bits.SYNCSEL = 0x1F;
+    OC3CON2bits.OCTRIG = 0;    
+    OC3CON1bits.OCM = 0b110;  
+   
 }
 
 void configTimer(){
@@ -534,5 +609,19 @@ void configTimer(){
     _T1IP = 4; // Select interrupt priority
     _T1IF = 0; // Clear interrupt flag
     _T1IE = 0; // Enable interrupt
-    PR1 = 2929; // Timer period of 9688 or 5 sec
+//    PR1 = 2929; // Timer period of 9688 or 5 sec
+    
+    
+    //TIMER 2 -------------------------------
+    T2CON = 0;
+    T2CONbits.TCKPS = 0b11;  // 1:256
+    T2CONbits.TCS = 0;       // Internal clock source 31khz
+    TMR2 = 0;       // Reset Timer1
+    T2CONbits.TON = 0;       // Turn Timer1 off
+   
+        // Configure Timer1 interrupt
+    _T2IP = 4; // Select interrupt priority
+    _T2IF = 0; // Clear interrupt flag
+    _T2IE = 1; // Enable interrupt
+    PR2 = 450; // Timer period of 9688 or 5 sec
 }
