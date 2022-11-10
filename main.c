@@ -1,6 +1,6 @@
-#define QRDEND ADC1BUF12 //pin15 or B12
+#define QRDMIDDLE ADC1BUF12 //pin15 or B12
 #define QRDLEFT ADC1BUF4//pin6 or B2
-#define QRDMIDDLE ADC1BUF13//pin7 or A2
+#define QRDEND ADC1BUF13//pin7 or A2
 //#define QRDRIGHT ADC1BUF14 //pin8 or A3 THIS one is the plan, but it is outputting pwm??
 #define QRDRIGHT ADC1BUF11 //pin16 or b13
 //#define QRDTASK ADC1BUF11 //pin 16 or B13
@@ -130,13 +130,12 @@ void theEnd(){
 //    //Determining steps
 //        //Determine the number of steps for turn
    
-    int N = 580;//half a square
-    forwardAdjust(N);
-    N = 580;    //original number 126; value for 90 degrees and full square
-    turnRight(N);
-    goBackwards(N);
+    forwardAdjust(400);
+    turnRight2(PIVOTNINETY);
+    goBackwards(2100);
     LMSPEED = 0;
     RMSPEED = 0;
+    //alex's servo code
     while(1){}
    
 }
@@ -270,11 +269,12 @@ int main(void) {
    
 //------------------------loop-------------------------------
     //start
-    hesitate(800);
-    forwardAdjust(2000);
-    turnLeft2(PIVOTNINETY);
-    resetDefaultMotors();
+//    hesitate(800);
+//    forwardAdjust(2000);
+//    turnLeft2(PIVOTNINETY);
+//    resetDefaultMotors();
 
+//    theEnd();
     //running
     while(1){
         switch (state) {
@@ -289,8 +289,10 @@ int main(void) {
                 _OC1IE = 0;
 //                JHAERYD = 0;//signifies that we are back in the line function
                                
-                if(QRDEND > threshold){ //END sees black
+                if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
                      TMR1 = 0;
+                     _TON = 1;
+                     AWYLLIKS = 1;
                      state = END;
                 }
 //                else{
@@ -388,10 +390,14 @@ int main(void) {
                 if(QRDEND < threshold){//task sees white
                     _TON = 0;
                     if(TMR1 > 110){
+                                          JHAERYD = 1;
+
                         theEnd();
                     }
                     state = LINE;
                     TMR1 = 0;
+                    
+                     AWYLLIKS = 0;
     //                _TON = 0;
                 }
                 break;
@@ -522,7 +528,7 @@ void config_ad(void){
     _NVCFG = 0;   // AD1CON2<13> -- Use VSS as negative ref voltage
     _BUFREGEN = 1;// AD1CON2<11> -- Result appears in buffer location corresponding to channel
     _CSCNA = 1;   // AD1CON2<10> -- Scans inputs specified in AD1CSSx registers
-    _SMPI = 4;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
+    _SMPI = 5;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
     _ALTS = 0;    // AD1CON2<0> -- Sample MUXA only
 
     // AD1CON3 register
