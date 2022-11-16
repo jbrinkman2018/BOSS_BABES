@@ -1,4 +1,3 @@
-
 #define QRDMIDDLE ADC1BUF12 //pin15 or B12
 #define QRDLEFT ADC1BUF4//pin6 or B2
 #define QRDEND ADC1BUF13//pin7 or A2
@@ -17,9 +16,10 @@
 #define READJUST 50
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
+#define SERVO OC3R
 
-#define AWYLLIKS _LATB1
-#define JHAERYD _LATA4
+#define LED2 _LATB1
+#define LED1 _LATA4
 #include "xc.h"
 
 #pragma config ICS = PGx3
@@ -34,7 +34,7 @@
 int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
-int threshold = 1250; //QRD threshold
+int threshold = 800; //QRD threshold
 int lineTime = 50;
 
 //Interrupt Functions -------------------------
@@ -142,26 +142,26 @@ void theEnd(){
 }
 void Sampledump()
 {
-    int right = 1;
+//    int right = 1;
    //625 for max angle.
    //125 for min angle.
 //read ball
-//OC3R=375;
+SERVO=375;
  //   threshold=1250
-if (QRDBALL >= 800)
-    {
-        right=0;
-    }    
+//if (QRDBALL >= 800)
+//    {
+//        right=0;
+//    }    
 //move ball to either side depending on QRD value
-if (right==0)
+if (QRDBALL >= threshold)
     {
  //   _LATA4=1;
-     OC3R=205;  
+     SERVO=205;  
     }
 else
     {
 //    _LATA4=0;
-     OC3R=540;  
+     SERVO=540;  
     }
 }
 
@@ -180,16 +180,16 @@ int countLines(){
         if(QRDTASK > threshold ){//task sees black
             //bool = true
             onBlack = 1;  
-//            JHAERYD = 0;
+//            LED1 = 0;
         }
         if(onBlack == 1 && QRDTASK < threshold){
             //bool = false
             onBlack = 0;
-//            JHAERYD = 1;
+//            LED1 = 1;
             count ++;        //add to count
         }
     }
-    AWYLLIKS = 0;
+    LED2 = 0;
     return count;
    
 }
@@ -275,10 +275,10 @@ int main(void) {
    
 //------------------------loop-------------------------------
     //start
-    hesitate(800);
-    forwardAdjust(2000);
-    turnLeft2(PIVOTNINETY);
-    resetDefaultMotors();
+//    hesitate(800);
+//    forwardAdjust(2000);
+//    turnLeft2(PIVOTNINETY);
+//    resetDefaultMotors();
 
 //    theEnd();
     //running
@@ -320,12 +320,12 @@ int main(void) {
            
             case LINE:
                 _OC1IE = 0;
-//                JHAERYD = 0;//signifies that we are back in the line function
+//                LED1 = 0;//signifies that we are back in the line function
                                
                 if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
                      TMR1 = 0;
                      _TON = 1;
-                     AWYLLIKS = 1;
+                     LED2 = 1;
                      state = END;
                 }
 //                else{
@@ -333,15 +333,19 @@ int main(void) {
 //                     _LATA1 = 0;
 //                 }
                 if(isTimerUp == 1 && doDrop ==1){
-                    JHAERYD = 0;
+                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doDrop = 0;
                     isTimerUp = 0;
-                        hesitate(800);
+//                    sampledump();
+                    hesitate(800);
+                    Sampledump();
+                    hesitate(2000);
+                    SERVO = 375;
                 }
                 if(isTimerUp == 1 && doCollect ==1){
-                    JHAERYD = 0;
+                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doCollect = 0;
@@ -360,7 +364,7 @@ int main(void) {
                 switch (numLines){
                     case 2://collect ball
                        numLines = 0;
-                       JHAERYD = 1;
+                       LED1 = 1;
                        doCollect = 1;
                        TMR2 = 0;
                        T2CONbits.TON = 1;
@@ -368,7 +372,7 @@ int main(void) {
                     case 3://drop ball
                         numLines = 0;
                         doDrop = 1;
-                       JHAERYD = 1;
+                       LED1 = 1;
                        TMR2 = 0;
                        T2CONbits.TON = 1;
                     break;
@@ -383,21 +387,23 @@ int main(void) {
                     TMR1 = 0;
                     _TON = 1;
                     state = TASK;
-//                    JHAERYD = 1;
+//                    LED1 = 1;
                 }
                
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
-                    RMSPEED = 0;    
+                    RMSPEED = 0; 
+//                    LMSPEED = 413;  
                 }
                 else{
                     RMSPEED = RMFWDSPEED;
                 }
                 if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
                     LMSPEED = 0;
+//                    RMSPEED = 413;
                 }
                 else{
-                    LMSPEED = LMFWDSPEED;    
+                    LMSPEED = LMFWDSPEED;
                 }
                
                 break;
@@ -408,8 +414,8 @@ int main(void) {
                 if(QRDTASK < threshold){//task sees white
                     _TON = 0;
                     if(TMR1 > lineTime){
-//                        JHAERYD = 0;
-                        AWYLLIKS = 1;
+//                        LED1 = 0;
+                        LED2 = 1;
                         numLines = countLines();
                     }
                     state = LINE;
@@ -423,14 +429,14 @@ int main(void) {
                 if(QRDEND < threshold){//task sees white
                     _TON = 0;
                     if(TMR1 > 110){
-                                          JHAERYD = 1;
+                                          LED1 = 1;
 
                         theEnd();
                     }
                     state = LINE;
                     TMR1 = 0;
                     
-                     AWYLLIKS = 0;
+                     LED2 = 0;
     //                _TON = 0;
                 }
                 break;
