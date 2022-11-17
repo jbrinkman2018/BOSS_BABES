@@ -17,8 +17,9 @@
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
 #define SERVO OC3R
+#define LASER _LATB12
 
-#define LED2 _LATB1
+#define LED2 _LATB4
 #define LED1 _LATA4
 #include "xc.h"
 
@@ -40,6 +41,7 @@ int lineTime = 50;
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void);
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void);
+void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void);
 void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void);
 
 //Configure Functions --------------------------------
@@ -189,7 +191,7 @@ int countLines(){
             count ++;        //add to count
         }
     }
-    LED2 = 0;
+//    LED2 = 0;
     return count;
    
 }
@@ -237,6 +239,10 @@ int main(void) {
    
     _ANSB0 = 0;
     _TRISB0 = 0;
+    _ANSB4 = 0;
+    _TRISB4 = 0;
+    _ANSB12 = 0;
+    _TRISB12 = 0;
    
 //    _ANSB15 = 0;
 //    _TRISB15 = 0;
@@ -253,6 +259,7 @@ int main(void) {
     int numLines = 0;
     int doCollect = 0;
     int doDrop = 0;
+    LASER = 1;
    
 
 // Call Configurations -----------------------------------------------------------
@@ -264,7 +271,7 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = LINE;
+    state = TESTSERVO;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -286,54 +293,65 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO:
-                while(1)
-                {
-                  OC1R = 0;
-                  OC2R = 0;
-                  
-                    delay(30000);
-                    delay(30000);
-                   
-              Sampledump();
-                    
-              delay(30000);
-              delay(30000);
-              OC3R = 375;
-                    //625 for max angle.
-                    //125 for min angle.
-                 //read ball
-//                 if (QRDBALL >= threshold)
-//                     {
-//                       _LATA4=1;
-//                     }    
-//                 else
-//                 {
-//                 _LATA4=0;
-//                 }
-//                  OC3R = 625;
-//                  delay(5000);
-//                  OC3R = 125;
-//                  delay(5000);
-                  
-                }
+                RMSPEED = 0;
+                LMSPEED = 0;
+                SERVO = 625;
+                delay(30000);
+                SERVO = 500;
+                LASER = 0;//turn on
+                while(1){}
+//                while(1){}
+                
+                
+                
+//                while(1)
+//                {
+//                  OC1R = 0;
+//                  OC2R = 0;
+//                  
+//                    delay(30000);
+//                    delay(30000);
+//                   
+//              Sampledump();
+//                    
+//              delay(30000);
+//              delay(30000);
+//              OC3R = 375;
+//                    //625 for max angle.
+//                    //125 for min angle.
+//                 //read ball
+////                 if (QRDBALL >= threshold)
+////                     {
+////                       _LATA4=1;
+////                     }    
+////                 else
+////                 {
+////                 _LATA4=0;
+////                 }
+////                  OC3R = 625;
+////                  delay(5000);
+////                  OC3R = 125;
+////                  delay(5000);
+//                  
+//                }
             break;    
            
             case LINE:
                 _OC1IE = 0;
 //                LED1 = 0;//signifies that we are back in the line function
                                
-                if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
-                     TMR1 = 0;
-                     _TON = 1;
-                     LED2 = 1;
-                     state = END;
-                }
+//                if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
+//                     TMR1 = 0;
+//                     _TON = 1;
+//                     LED2 = 1;
+//                     state = END;
+//                }
 //                else{
 //                     _LATB9 = 0;
 //                     _LATA1 = 0;
 //                 }
                 if(isTimerUp == 1 && doDrop ==1){
-                    LED1 = 0;
+//                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doDrop = 0;
@@ -345,7 +363,7 @@ int main(void) {
                     SERVO = 375;
                 }
                 if(isTimerUp == 1 && doCollect ==1){
-                    LED1 = 0;
+//                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doCollect = 0;
@@ -364,7 +382,7 @@ int main(void) {
                 switch (numLines){
                     case 2://collect ball
                        numLines = 0;
-                       LED1 = 1;
+//                       LED1 = 1;
                        doCollect = 1;
                        TMR2 = 0;
                        T2CONbits.TON = 1;
@@ -372,7 +390,7 @@ int main(void) {
                     case 3://drop ball
                         numLines = 0;
                         doDrop = 1;
-                       LED1 = 1;
+//                       LED1 = 1;
                        TMR2 = 0;
                        T2CONbits.TON = 1;
                     break;
@@ -393,16 +411,20 @@ int main(void) {
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
                     RMSPEED = 0; 
+                    LED1 = 1;
 //                    LMSPEED = 413;  
                 }
                 else{
                     RMSPEED = RMFWDSPEED;
+                    LED1 = 0;
                 }
                 if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
                     LMSPEED = 0;
+                    LED2 = 1;
 //                    RMSPEED = 413;
                 }
                 else{
+                    LED2 = 0;
                     LMSPEED = LMFWDSPEED;
                 }
                
@@ -415,7 +437,7 @@ int main(void) {
                     _TON = 0;
                     if(TMR1 > lineTime){
 //                        LED1 = 0;
-                        LED2 = 1;
+//                        LED2 = 1;
                         numLines = countLines();
                     }
                     state = LINE;
@@ -429,14 +451,14 @@ int main(void) {
                 if(QRDEND < threshold){//task sees white
                     _TON = 0;
                     if(TMR1 > 110){
-                                          LED1 = 1;
+//                                          LED1 = 1;
 
                         theEnd();
                     }
                     state = LINE;
                     TMR1 = 0;
                     
-                     LED2 = 0;
+//                     LED2 = 0;
     //                _TON = 0;
                 }
                 break;
@@ -534,6 +556,10 @@ void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void){
     steps=steps+1;
 }
 void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void){
+    _OC2IF = 0; //take down flag
+    steps=steps+1;
+}
+void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void){
     _OC2IF = 0; //take down flag
     steps=steps+1;
 }
