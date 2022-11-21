@@ -7,6 +7,7 @@
 #define QRDTASK ADC1BUF0 // pin2 or A0
 //#define QRDBALL ADC1BUF0 // pin2 or A0
 #define QRDBALL ADC1BUF14 // pin8 or A3
+#define SATDETECT ADC1BUF10 //pin 17 or B14
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
 #define RMFWDSPEED 313
@@ -37,6 +38,7 @@ int steps = 0;
 int isTimerUp = 0;
 int threshold = 800; //QRD threshold
 int lineTime = 50;
+int delayCount = 0;
 
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void);
@@ -142,6 +144,37 @@ void theEnd(){
     while(1){}
    
 }
+
+void Satellite(){
+    _OC3IE = 1;
+    SERVO = 1;
+    steps = 0;
+    LED1 = 0;
+//    delay(30);
+    int keepServo = 0;
+    int maxIR = 0;
+    
+    //increment servo and read in the IR values
+    while(steps < 620){//what end val?
+        LED1 = 1;
+        if(SATDETECT > maxIR){
+            keepServo = SERVO;
+            maxIR = SATDETECT;
+        }
+        //READin qrd and choose highest val
+    }
+    LED1 = 0;
+    _OC3IE = 0;
+    
+    while(1){
+        SERVO = keepServo;
+        LASER = 0;//turn on laser
+    }
+    //if highest reading is high enough go to keepServo
+    //else go to average value
+}
+
+
 void Sampledump()
 {
 //    int right = 1;
@@ -235,7 +268,8 @@ int main(void) {
     _TRISB7 = 1; // front proximity sensor
     _TRISB8 = 1; //right proximity sensor
     _TRISB15 = 1; // left proximity sensor
-   
+   _ANSB14 = 1;//LASER DETECTOR
+    _TRISB14 = 1;
    
     _ANSB0 = 0;
     _TRISB0 = 0;
@@ -259,7 +293,7 @@ int main(void) {
     int numLines = 0;
     int doCollect = 0;
     int doDrop = 0;
-    LASER = 1;
+    LASER = 1;//turn off laser
    
 
 // Call Configurations -----------------------------------------------------------
@@ -293,13 +327,17 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO:
+                LED1 =0;
+                LED2 = 0;
                 RMSPEED = 0;
                 LMSPEED = 0;
-                SERVO = 625;
-                delay(30000);
-                SERVO = 500;
-                LASER = 0;//turn on
-                while(1){}
+                
+                Satellite();
+//                SERVO = 625;
+//                delay(30000);
+//                SERVO = 500;
+//                LASER = 0;//turn on
+//                while(1){}
 //                while(1){}
                 
                 
@@ -560,8 +598,13 @@ void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void){
     steps=steps+1;
 }
 void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void){
-    _OC2IF = 0; //take down flag
-    steps=steps+1;
+    _OC3IF = 0; //take down flag
+//    delayCount++;
+//    if(delayCount > 2){
+        steps ++;
+        SERVO = steps;
+//        delayCount = 0;
+//    }
 }
 void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void){
 _T2IF = 0; // Clear interrupt flag
@@ -593,7 +636,7 @@ void config_ad(void){
     _NVCFG = 0;   // AD1CON2<13> -- Use VSS as negative ref voltage
     _BUFREGEN = 1;// AD1CON2<11> -- Result appears in buffer location corresponding to channel
     _CSCNA = 1;   // AD1CON2<10> -- Scans inputs specified in AD1CSSx registers
-    _SMPI = 5;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
+    _SMPI = 6;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
     _ALTS = 0;    // AD1CON2<0> -- Sample MUXA only
 
     // AD1CON3 register
@@ -610,6 +653,7 @@ void config_ad(void){
     _CSS14 = 1;
     _CSS0 = 1;
     _CSS12 = 1;
+    _CSS10 = 1;
 
     _ADON = 1;    // AD1CON1<15> -- Turn on A/D
 }
@@ -644,7 +688,7 @@ void configPWM(){
     OC2CON1bits.OCM = 0b110;
    
     _OC1IP = 4; // Select OCx interrupt priority
-    _OC1IE = 1; // disable OCx interrupt to start
+    _OC1IE = 1; // ENABLE OCx interrupt to start ERROR CHECK
     _OC1IF = 0; // Clear OCx interrupt flag
    
     _OC2IP = 4; // Select OCx interrupt priority
@@ -656,7 +700,7 @@ void configPWM(){
     OC3CON1 = 0;
     OC3CON2 = 0;
    
-    _TRISB1= 0;
+    _TRISB1= 0;//ERROR CHECK
              
                    
     OC3R = 375;
@@ -669,6 +713,10 @@ void configPWM(){
     OC3CON2bits.SYNCSEL = 0x1F;
     OC3CON2bits.OCTRIG = 0;    
     OC3CON1bits.OCM = 0b110;  
+    
+    _OC3IP = 4; // Select OCx interrupt priority
+    _OC3IE = 0; // disable OCx interrupt to start
+    _OC3IF = 0; // Clear OCx interrupt flag
    
 }
 
