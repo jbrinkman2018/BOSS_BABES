@@ -145,7 +145,7 @@ void Satellite(){
 //    }
     //increment servo and read in the IR values
     while(steps < 540){//what end val?
-        LED1 = 1;
+//        LED1 = 1;
         if(SATDETECT > maxIR){
             keepServo = SERVO;
             maxIR = SATDETECT;
@@ -226,12 +226,12 @@ int countLines(){
         if(QRDTASK > threshold ){//task sees black
             //bool = true
             onBlack = 1;  
-//            LED1 = 0;
+            LED1 = 1;
         }
-        if(onBlack == 1 && QRDTASK < threshold){
+        if(onBlack == 1 && QRDTASK < threshold){//task sees white again
             //bool = false
             onBlack = 0;
-//            LED1 = 1;
+            LED1 = 0;
             count ++;        //add to count
         }
     }
@@ -318,7 +318,7 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = TESTSERVO;
+    state = LINE;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -432,21 +432,21 @@ int main(void) {
                 }
                 
                //Equipment servicing 
-                if(EQSERVICE > 400 ){//ir at threshold
-                    LED1 = 1;
-                    doCollect = 1;
-                    isTimerUp = 1;
-                }
+//                if(EQSERVICE > 400 ){//ir at threshold
+//                    LED1 = 1;
+//                    doCollect = 1;
+//                    isTimerUp = 1;
+//                }
                 
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
                     RMSPEED = 0; 
-                    LED1 = 1;
+//                    LED1 = 1;
 //                    LMSPEED = 413;  
                 }
                 else{
                     RMSPEED = RMFWDSPEED;
-                    LED1 = 0;
+//                    LED1 = 0;
                 }
                 if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
                     LMSPEED = 0;
