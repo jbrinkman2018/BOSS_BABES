@@ -128,7 +128,47 @@ void resetDefaultMotors(){
         _LATB9 = 0;
 }
 
-void theEnd(){
+
+void Satellite(){
+    _OC3IE = 1;
+    SERVO = 260;
+    steps = 260;
+    LED1 = 0;
+//    delay(30);
+    int keepServo = 0;
+    int maxIR = 0;
+    //to test success
+//    while(1){
+//        if(SATDETECT > 200){
+//            LED1 = 1;
+//        }else LED1 = 0;
+//    }
+    //increment servo and read in the IR values
+    while(steps < 540){//what end val?
+        LED1 = 1;
+        if(SATDETECT > maxIR){
+            keepServo = SERVO;
+            maxIR = SATDETECT;
+        }
+        //READin qrd and choose highest val
+    }
+    LED1 = 0;
+    _OC3IE = 0;
+    
+    while(1){
+        if(keepServo > 500 || keepServo < 300){
+            SERVO = 390;
+        }else{
+        SERVO = keepServo;
+        }
+//        SERVO = keepServo;
+        LASER = 0;//turn on laser
+    }
+    //if highest reading is high enough go to keepServo
+    //else go to average value
+}
+
+void theEnd(){//NOTE: this must come after the satellite function
     //Change the direction of one of the motors
    // _LATB9=1;
 //    //start count
@@ -145,41 +185,6 @@ void theEnd(){
     while(1){}
    
 }
-
-void Satellite(){
-    _OC3IE = 1;
-    SERVO = 1;
-    steps = 0;
-    LED1 = 0;
-//    delay(30);
-    int keepServo = 0;
-    int maxIR = 0;
-    //to test success
-//    while(1){
-//        if(SATDETECT > 200){
-//            LED1 = 1;
-//        }else LED1 = 0;
-//    }
-    //increment servo and read in the IR values
-    while(steps < 300){//what end val?
-        LED1 = 1;
-        if(SATDETECT > maxIR){
-            keepServo = SERVO;
-            maxIR = SATDETECT;
-        }
-        //READin qrd and choose highest val
-    }
-    LED1 = 0;
-    _OC3IE = 0;
-    
-    while(1){
-        SERVO = keepServo;
-        LASER = 0;//turn on laser
-    }
-    //if highest reading is high enough go to keepServo
-    //else go to average value
-}
-
 
 void Sampledump()
 {
@@ -313,7 +318,7 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = LINE;
+    state = TESTSERVO;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -339,12 +344,18 @@ int main(void) {
                 
                 RMSPEED = 0;
                 LMSPEED = 0;
-                if(EQSERVICE > 400 ){//ir at threshold
-                    LED1 = 1;
-                    doCollect = 1;
-                    isTimerUp = 1;
-                }
-//                Satellite();
+//                if(EQSERVICE > 400 ){//ir at threshold
+//                    LED1 = 1;
+//                    doCollect = 1;
+//                    isTimerUp = 1;
+//                }
+//                SERVO = 1;
+//                delay(10000);
+//                SERVO = 200;
+//                delay(10000);
+//                SERVO = 500;
+//                delay(10000);
+                Satellite();
 
             break;    
            
