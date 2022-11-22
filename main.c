@@ -8,10 +8,11 @@
 //#define QRDBALL ADC1BUF0 // pin2 or A0
 #define QRDBALL ADC1BUF14 // pin8 or A3
 #define SATDETECT ADC1BUF10 //pin 17 or B14
+#define EQSERVICE ADC1BUF15 //pin 9 or B4 //SERVICING
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
-#define RMFWDSPEED 313
-#define LMFWDSPEED 313
+#define RMFWDSPEED 175
+#define LMFWDSPEED 175
 #define TURNNINETY 900
 #define SWITCHDIRCOUNT 1050
 #define READJUST 50
@@ -140,7 +141,7 @@ void theEnd(){
     goBackwards(2100);
     LMSPEED = 0;
     RMSPEED = 0;
-    //alex's servo code
+    Satellite();
     while(1){}
    
 }
@@ -153,9 +154,14 @@ void Satellite(){
 //    delay(30);
     int keepServo = 0;
     int maxIR = 0;
-    
+    //to test success
+//    while(1){
+//        if(SATDETECT > 200){
+//            LED1 = 1;
+//        }else LED1 = 0;
+//    }
     //increment servo and read in the IR values
-    while(steps < 620){//what end val?
+    while(steps < 300){//what end val?
         LED1 = 1;
         if(SATDETECT > maxIR){
             keepServo = SERVO;
@@ -270,11 +276,13 @@ int main(void) {
     _TRISB15 = 1; // left proximity sensor
    _ANSB14 = 1;//LASER DETECTOR
     _TRISB14 = 1;
+     _ANSB4 = 1;
+    _TRISB4 = 1;
    
     _ANSB0 = 0;
     _TRISB0 = 0;
-    _ANSB4 = 0;
-    _TRISB4 = 0;
+//    _ANSB4 = 0;
+//    _TRISB4 = 0; //THESE need to be uncommented to use the second led
     _ANSB12 = 0;
     _TRISB12 = 0;
    
@@ -293,7 +301,7 @@ int main(void) {
     int numLines = 0;
     int doCollect = 0;
     int doDrop = 0;
-    LASER = 1;//turn off laser
+    LASER = 1; //turn off laser
    
 
 // Call Configurations -----------------------------------------------------------
@@ -305,7 +313,7 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = TESTSERVO;
+    state = LINE;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -313,7 +321,8 @@ int main(void) {
     LMSPEED = LMFWDSPEED; // ERROR, MAKE THIS 1500
     OC1R = LMFWDSPEED/2;
     OC2R = RMFWDSPEED/2;
-   
+   LED1 =0;
+                LED2 = 0;
 //------------------------loop-------------------------------
     //start
 //    hesitate(800);
@@ -327,51 +336,16 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO:
-                LED1 =0;
-                LED2 = 0;
+                
                 RMSPEED = 0;
                 LMSPEED = 0;
-                
-                Satellite();
-//                SERVO = 625;
-//                delay(30000);
-//                SERVO = 500;
-//                LASER = 0;//turn on
-//                while(1){}
-//                while(1){}
-                
-                
-                
-//                while(1)
-//                {
-//                  OC1R = 0;
-//                  OC2R = 0;
-//                  
-//                    delay(30000);
-//                    delay(30000);
-//                   
-//              Sampledump();
-//                    
-//              delay(30000);
-//              delay(30000);
-//              OC3R = 375;
-//                    //625 for max angle.
-//                    //125 for min angle.
-//                 //read ball
-////                 if (QRDBALL >= threshold)
-////                     {
-////                       _LATA4=1;
-////                     }    
-////                 else
-////                 {
-////                 _LATA4=0;
-////                 }
-////                  OC3R = 625;
-////                  delay(5000);
-////                  OC3R = 125;
-////                  delay(5000);
-//                  
-//                }
+                if(EQSERVICE > 400 ){//ir at threshold
+                    LED1 = 1;
+                    doCollect = 1;
+                    isTimerUp = 1;
+                }
+//                Satellite();
+
             break;    
            
             case LINE:
@@ -445,7 +419,14 @@ int main(void) {
                     state = TASK;
 //                    LED1 = 1;
                 }
-               
+                
+               //Equipment servicing 
+                if(EQSERVICE > 400 ){//ir at threshold
+                    LED1 = 1;
+                    doCollect = 1;
+                    isTimerUp = 1;
+                }
+                
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
                     RMSPEED = 0; 
@@ -636,7 +617,7 @@ void config_ad(void){
     _NVCFG = 0;   // AD1CON2<13> -- Use VSS as negative ref voltage
     _BUFREGEN = 1;// AD1CON2<11> -- Result appears in buffer location corresponding to channel
     _CSCNA = 1;   // AD1CON2<10> -- Scans inputs specified in AD1CSSx registers
-    _SMPI = 6;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
+    _SMPI = 7;  // AD1CON2<6:2> -- Every 4th conversion sent to buffer (if sampling 4 channels)
     _ALTS = 0;    // AD1CON2<0> -- Sample MUXA only
 
     // AD1CON3 register
@@ -654,6 +635,7 @@ void config_ad(void){
     _CSS0 = 1;
     _CSS12 = 1;
     _CSS10 = 1;
+    _CSS15 = 1;
 
     _ADON = 1;    // AD1CON1<15> -- Turn on A/D
 }
