@@ -11,11 +11,12 @@
 #define EQSERVICE ADC1BUF15 //pin 9 or B4 //SERVICING
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
-#define RMFWDSPEED 175
+#define RMFWDSPEED 175//175
 #define LMFWDSPEED 175
+#define TURNSPEED 250
 #define TURNNINETY 900
 #define SWITCHDIRCOUNT 1050
-#define READJUST 50
+#define READJUST 150 //50
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
 #define SERVO OC3R
@@ -37,8 +38,8 @@
 int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
-int threshold = 800; //QRD threshold
-int lineTime = 50;
+int threshold = 1250; //QRD threshold 1250?
+int lineTime = 25;
 int delayCount = 0;
 
 //Interrupt Functions -------------------------
@@ -59,11 +60,14 @@ void turnRight(int N){
         LMSPEED = 0;
         _LATB9=1;
         _LATA1 = 0;
+        RMSPEED = TURNSPEED;
     }
 }
 void turnRight2(int N){
     steps = 0;  //restart step count
     while(steps<N){
+        LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
         _LATB9=1;
         _LATA1 = 0;
     }
@@ -71,16 +75,20 @@ void turnRight2(int N){
 void turnLeft(int N){
     steps = 0;  //restart step count
     while(steps<N){
-        _LATB1 = 1;
+    //    _LATB1 = 1;
         LMSPEED = 0;
         _LATA1=1;
         _LATB9 = 0;
+       LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
     }
 }
 
 void turnLeft2(int N){
     steps = 0;
     while (steps<N){
+        LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
         _LATB9 = 0;
         _LATA1 = 1;
     }
@@ -91,8 +99,8 @@ void goBackwards(int N){
     while(steps<N){
         _LATB9 = 1;
         _LATA1 = 1;
-        LMSPEED = LMFWDSPEED;
-        RMSPEED = RMFWDSPEED;
+        LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
     }
 }
 
@@ -154,7 +162,7 @@ void Satellite(){
     }
     LED1 = 0;
     _OC3IE = 0;
-    
+   
     while(1){
         if(keepServo > 500 || keepServo < 300){
             SERVO = 390;
@@ -213,17 +221,19 @@ else
 
 int countLines(){
     //initialization
-    RMSPEED = RMFWDSPEED;
-    LMSPEED = LMFWDSPEED;
+//    RMSPEED = 313;
+//    LMSPEED = 313;
    
     int count = 1;
-    int N = 600;//how far the bot goes to pass 3 lines, abt 1/3 a block
+    int N = 800;//how far the bot goes to pass 3 lines, abt 1/3 a block
     steps = 0;//reset
     _OC1IE = 1;//start count
     int onBlack = 0;
    
     while(steps < N){
-        if(QRDTASK > threshold ){//task sees black
+//        RMSPEED = 313;
+//        LMSPEED = 313;
+        if(QRDTASK > threshold && onBlack == 0 ){//task sees black
             //bool = true
             onBlack = 1;  
             LED1 = 1;
@@ -281,13 +291,13 @@ int main(void) {
     _TRISB15 = 1; // left proximity sensor
    _ANSB14 = 1;//LASER DETECTOR
     _TRISB14 = 1;
-     _ANSB4 = 1;
-    _TRISB4 = 1;
+//     _ANSB4 = 1;//theseneed to be un commented to use the ir sensor
+//    _TRISB4 = 1;
    
     _ANSB0 = 0;
     _TRISB0 = 0;
-//    _ANSB4 = 0;
-//    _TRISB4 = 0; //THESE need to be uncommented to use the second led
+    _ANSB4 = 0;
+    _TRISB4 = 0; //THESE need to be uncommented to use the second led
     _ANSB12 = 0;
     _TRISB12 = 0;
    
@@ -302,7 +312,6 @@ int main(void) {
 
  //initialize variables ---------------------------------------------------------
     int N = 0;//step counter
-    int threshold = 1250; //QRD threshold
     int numLines = 0;
     int doCollect = 0;
     int doDrop = 0;
@@ -319,6 +328,7 @@ int main(void) {
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
     state = LINE;
+//    state = TESTSERVO;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
@@ -327,7 +337,7 @@ int main(void) {
     OC1R = LMFWDSPEED/2;
     OC2R = RMFWDSPEED/2;
    LED1 =0;
-                LED2 = 0;
+   LED2 = 0;
 //------------------------loop-------------------------------
     //start
 //    hesitate(800);
@@ -341,26 +351,13 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO:
-                
-                RMSPEED = 0;
-                LMSPEED = 0;
-//                if(EQSERVICE > 400 ){//ir at threshold
-//                    LED1 = 1;
-//                    doCollect = 1;
-//                    isTimerUp = 1;
-//                }
-//                SERVO = 1;
-//                delay(10000);
-//                SERVO = 200;
-//                delay(10000);
-//                SERVO = 500;
-//                delay(10000);
-                Satellite();
 
             break;    
            
             case LINE:
                 _OC1IE = 0;
+                LED1 =0;
+                LED2 = 0;
 //                LED1 = 0;//signifies that we are back in the line function
                                
 //                if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
@@ -428,19 +425,19 @@ int main(void) {
                     TMR1 = 0;
                     _TON = 1;
                     state = TASK;
-//                    LED1 = 1;
+                    LED1 = 1;
                 }
-                
-               //Equipment servicing 
+               
+               //Equipment servicing
 //                if(EQSERVICE > 400 ){//ir at threshold
 //                    LED1 = 1;
 //                    doCollect = 1;
 //                    isTimerUp = 1;
 //                }
-                
+               
                 //Line following -------------------------------------------------
                 if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
-                    RMSPEED = 0; 
+                    RMSPEED = 0;
 //                    LED1 = 1;
 //                    LMSPEED = 413;  
                 }
@@ -450,11 +447,11 @@ int main(void) {
                 }
                 if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
                     LMSPEED = 0;
-                    LED2 = 1;
+//                    LED2 = 1;
 //                    RMSPEED = 413;
                 }
                 else{
-                    LED2 = 0;
+//                    LED2 = 0;
                     LMSPEED = LMFWDSPEED;
                 }
                
@@ -468,9 +465,13 @@ int main(void) {
                     if(TMR1 > lineTime){
 //                        LED1 = 0;
 //                        LED2 = 1;
+                        LMSPEED = 313;
+                        RMSPEED = 313;
                         numLines = countLines();
                     }
                     state = LINE;
+//                    LMSPEED = LMFWDSPEED;
+//                    RMSPEED = RMFWDSPEED;
                     TMR1 = 0;
     //                _TON = 0;
                 }
@@ -487,7 +488,7 @@ int main(void) {
                     }
                     state = LINE;
                     TMR1 = 0;
-                    
+                   
 //                     LED2 = 0;
     //                _TON = 0;
                 }
@@ -503,6 +504,8 @@ int main(void) {
                
             case CANYON:
                 _OC1IE =1;
+                LMSPEED = 313;
+                RMSPEED = 313;
                 switch(canyon_state) {
                     case FORWARD:
                       if (!_RB7){
@@ -529,6 +532,7 @@ int main(void) {
                         break;
                     case TURNRIGHT:
                       if (!_RB7){
+                          goBackwards(READJUST);
                           // full 180 turn and go back forward
                         turnRight2(SWITCHDIRCOUNT);
                         resetDefaultMotors();
@@ -554,16 +558,16 @@ int main(void) {
                       }
                       break;    
                 }
-                if (QRDLEFT > threshold || QRDRIGHT > threshold) {
-                    state = CHECKLINE;
-                    TMR1 = 0;
-                    _TON = 1;
-                }
-                break;  
+//                if (QRDLEFT > threshold || QRDRIGHT > threshold) {
+//                    state = CHECKLINE;
+//                    TMR1 = 0;
+//                    _TON = 1;
+//                }
+//                break;  
             case CHECKLINE:
                 if(QRDLEFT < threshold && QRDRIGHT < threshold){//both see white
                     _TON = 0;
-                    if(TMR1 > 50){
+                    if(TMR1 > 100){
                         forwardAdjust(145);
                         turnRight2(PIVOTNINETY);
                         resetDefaultMotors();
@@ -698,7 +702,7 @@ void configPWM(){
                    
     OC3R = 375;
     //625 for max angle.
-   //125 for min angle.       
+   //125 for min angle.      
     OC3RS= SERVOPERIOD;
    
     //Configure OC 3
@@ -706,7 +710,7 @@ void configPWM(){
     OC3CON2bits.SYNCSEL = 0x1F;
     OC3CON2bits.OCTRIG = 0;    
     OC3CON1bits.OCM = 0b110;  
-    
+   
     _OC3IP = 4; // Select OCx interrupt priority
     _OC3IE = 0; // disable OCx interrupt to start
     _OC3IF = 0; // Clear OCx interrupt flag
@@ -725,8 +729,8 @@ void configTimer(){
     _T1IF = 0; // Clear interrupt flag
     _T1IE = 0; // Enable interrupt
 //    PR1 = 2929; // Timer period of 9688 or 5 sec
-    
-    
+   
+   
     //TIMER 2 -------------------------------
     T2CON = 0;
     T2CONbits.TCKPS = 0b11;  // 1:256
