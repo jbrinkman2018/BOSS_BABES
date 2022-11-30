@@ -1,26 +1,27 @@
+#define true 1
+#define false 0
+
 #define QRDMIDDLE ADC1BUF12 //pin15 or B12
 #define QRDLEFT ADC1BUF4//pin6 or B2
 #define QRDEND ADC1BUF13//pin7 or A2
-//#define QRDRIGHT ADC1BUF14 //pin8 or A3 THIS one is the plan, but it is outputting pwm??
 #define QRDRIGHT ADC1BUF11 //pin16 or b13
-//#define QRDTASK ADC1BUF11 //pin 16 or B13
 #define QRDTASK ADC1BUF0 // pin2 or A0
-//#define QRDBALL ADC1BUF0 // pin2 or A0
 #define QRDBALL ADC1BUF14 // pin8 or A3
 #define SATDETECT ADC1BUF10 //pin 17 or B14
 #define EQSERVICE ADC1BUF15 //pin 9 or B4 //SERVICING
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
-#define RMFWDSPEED 175//175
-#define LMFWDSPEED 175
+#define SERVO OC3R
+#define LASER _LATB12
+
+int RMFWDSPEED = 175;//175
+int LMFWDSPEED = 175;
 #define TURNSPEED 250
 #define TURNNINETY 900
 #define SWITCHDIRCOUNT 1050
 #define READJUST 150 //50
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
-#define SERVO OC3R
-#define LASER _LATB12
 
 #define LED2 _LATB4
 #define LED1 _LATA4
@@ -38,8 +39,8 @@
 int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
-int threshold = 1250; //QRD threshold 1250?
-int lineTime = 25;
+int qrdThreshold = 1250; //QRD qrdThreshold 1250?
+int lineTime = 50;
 int delayCount = 0;
 
 //Interrupt Functions -------------------------
@@ -54,27 +55,27 @@ void configPWM();
 void configTimer();
 
 //Action Functions--------------------------------------------------------------
-void turnRight(int N){
+void turnRight(int stepsThreshold){
     steps = 0;  //restart step count
-    while(steps<N){
+    while(steps<stepsThreshold){
         LMSPEED = 0;
         _LATB9=1;
         _LATA1 = 0;
         RMSPEED = TURNSPEED;
     }
 }
-void turnRight2(int N){
+void turnRight2(int stepsThreshold){
     steps = 0;  //restart step count
-    while(steps<N){
+    while(steps<stepsThreshold){
         LMSPEED = TURNSPEED;
         RMSPEED = TURNSPEED;
         _LATB9=1;
         _LATA1 = 0;
     }
 }
-void turnLeft(int N){
+void turnLeft(int stepsThreshold){
     steps = 0;  //restart step count
-    while(steps<N){
+    while(steps<stepsThreshold){
     //    _LATB1 = 1;
         LMSPEED = 0;
         _LATA1=1;
@@ -84,9 +85,9 @@ void turnLeft(int N){
     }
 }
 
-void turnLeft2(int N){
+void turnLeft2(int stepsThreshold){
     steps = 0;
-    while (steps<N){
+    while (steps<stepsThreshold){
         LMSPEED = TURNSPEED;
         RMSPEED = TURNSPEED;
         _LATB9 = 0;
@@ -94,9 +95,9 @@ void turnLeft2(int N){
     }
 }
 
-void goBackwards(int N){
+void goBackwards(int stepsThreshold){
     steps = 0;
-    while(steps<N){
+    while(steps<stepsThreshold){
         _LATB9 = 1;
         _LATA1 = 1;
         LMSPEED = TURNSPEED;
@@ -104,10 +105,10 @@ void goBackwards(int N){
     }
 }
 
-void forwardAdjust(int N){
+void forwardAdjust(int stepsThreshold){
     steps = 0;
 
-    while (steps<N){
+    while (steps<stepsThreshold){
         LMSPEED = LMFWDSPEED;
         RMSPEED = RMFWDSPEED;
     }
@@ -201,13 +202,13 @@ void Sampledump()
    //125 for min angle.
 //read ball
 SERVO=375;
- //   threshold=1250
+ //   qrdThreshold=1250
 //if (QRDBALL >= 800)
 //    {
 //        right=0;
 //    }    
 //move ball to either side depending on QRD value
-if (QRDBALL >= threshold)
+if (QRDBALL >= qrdThreshold)
     {
  //   _LATA4=1;
      SERVO=205;  
@@ -225,20 +226,20 @@ int countLines(){
 //    LMSPEED = 313;
    
     int count = 1;
-    int N = 800;//how far the bot goes to pass 3 lines, abt 1/3 a block
+    int stepsThreshold = 800;//how far the bot goes to pass 3 lines, abt 1/3 a block
     steps = 0;//reset
     _OC1IE = 1;//start count
     int onBlack = 0;
    
-    while(steps < N){
+    while(steps < stepsThreshold){
 //        RMSPEED = 313;
 //        LMSPEED = 313;
-        if(QRDTASK > threshold && onBlack == 0 ){//task sees black
+        if(QRDTASK > qrdThreshold && onBlack == 0 ){//task sees black
             //bool = true
             onBlack = 1;  
             LED1 = 1;
         }
-        if(onBlack == 1 && QRDTASK < threshold){//task sees white again
+        if(onBlack == 1 && QRDTASK < qrdThreshold){//task sees white again
             //bool = false
             onBlack = 0;
             LED1 = 0;
@@ -311,11 +312,13 @@ int main(void) {
     _LATB9 = 0;
 
  //initialize variables ---------------------------------------------------------
-    int N = 0;//step counter
+    int stepsThreshold = 0;//step counter
     int numLines = 0;
     int doCollect = 0;
     int doDrop = 0;
     LASER = 1; //turn off laser
+    int taskDetecting = false;
+    int onBlack = 0;
    
 
 // Call Configurations -----------------------------------------------------------
@@ -338,6 +341,8 @@ int main(void) {
     OC2R = RMFWDSPEED/2;
    LED1 =0;
    LED2 = 0;
+    _OC1IE = 0;
+
 //------------------------loop-------------------------------
     //start
 //    hesitate(800);
@@ -350,17 +355,14 @@ int main(void) {
     while(1){
         switch (state) {
            
-            case TESTSERVO:
+            case TESTSERVO://used for testing purposes
 
             break;    
            
             case LINE:
-                _OC1IE = 0;
-                LED1 =0;
-                LED2 = 0;
-//                LED1 = 0;//signifies that we are back in the line function
-                               
-//                if(QRDEND > threshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
+               
+                  // THE END ---------------------------------------------------   
+//                if(QRDEND > qrdThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                     TMR1 = 0;
 //                     _TON = 1;
 //                     LED2 = 1;
@@ -371,87 +373,92 @@ int main(void) {
 //                     _LATA1 = 0;
 //                 }
                 if(isTimerUp == 1 && doDrop ==1){
-//                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doDrop = 0;
                     isTimerUp = 0;
-//                    sampledump();
                     hesitate(800);
                     Sampledump();
                     hesitate(2000);
                     SERVO = 375;
                 }
                 if(isTimerUp == 1 && doCollect ==1){
-//                    LED1 = 0;
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     doCollect = 0;
                     isTimerUp = 0;
-                         _OC1IE = 1; //eRROR should this be in all of the functions?
-//                        forwardAdjust(300);
-                        turnLeft2(PIVOTNINETY);
-                        goBackwards(820);
-                        hesitate(800);
-                        resetDefaultMotors();
-                        forwardAdjust(700);
-                        turnRight2(PIVOTNINETY);
-                        resetDefaultMotors();
-                        _OC1IE = 0;
+                    _OC1IE = 1; //eRROR should this be in all of the functions?
+                   turnLeft2(PIVOTNINETY);
+                   goBackwards(820);
+                   hesitate(800);
+                   resetDefaultMotors();
+                   forwardAdjust(700);
+                   turnRight2(PIVOTNINETY);
+                   resetDefaultMotors();
+                   _OC1IE = 0;
                 }
-                switch (numLines){
-                    case 2://collect ball
-                       numLines = 0;
-//                       LED1 = 1;
-                       doCollect = 1;
-                       TMR2 = 0;
-                       T2CONbits.TON = 1;
-                        break;
-                    case 3://drop ball
-                        numLines = 0;
-                        doDrop = 1;
-//                       LED1 = 1;
-                       TMR2 = 0;
-                       T2CONbits.TON = 1;
-                    break;
-                    case 4://canyon
-                        state = CANYON;
-                        numLines = 0;
-                    break;
-                }
-               
-                if(QRDTASK > threshold){//task sees black
-                    //start timer
-                    TMR1 = 0;
-                    _TON = 1;
-                    state = TASK;
-                    LED1 = 1;
-                }
-               
-               //Equipment servicing
-//                if(EQSERVICE > 400 ){//ir at threshold
+                
+               //Equipment servicing ----------------------------------------
+//                if(EQSERVICE > 400 ){//ir at qrdThreshold
 //                    LED1 = 1;
 //                    doCollect = 1;
 //                    isTimerUp = 1;
 //                }
                
+                //Count lines ----------------------------------------------
+                if(taskDetecting == false){
+                        if(QRDTASK > qrdThreshold){//task sees black
+                                //start timer
+                                TMR1 = 0;
+                                _TON = 1;
+                                state = TASK;
+                            }
+                }else{
+                        if(QRDTASK > qrdThreshold && onBlack == false){//task sees black
+                            onBlack = true;  
+                        }
+                        if(onBlack == true && QRDTASK < qrdThreshold){//task sees white again
+                            onBlack = false;
+                            numLines ++;        //add to count
+                        }
+
+                        if(steps > stepsThreshold){
+                            switch (numLines){
+                                case 2://collect ball
+                                   doCollect = 1;
+                                   TMR2 = 0;
+                                   T2CONbits.TON = 1;
+                                    break;
+                                case 3://drop ball
+                                    doDrop = 1;
+                                   TMR2 = 0;
+                                   T2CONbits.TON = 1;
+                                break;
+                                case 4://canyon
+                                    state = CANYON;
+                                break;
+                            }
+                            numLines = 0;
+                            taskDetecting = false;
+                            _OC1IE = 0;//stop count
+                            onBlack = false;
+                            LMFWDSPEED = 175;
+                            RMFWDSPEED = 175;//error 
+                            hesitate(100);
+                        }
+                }
+                
                 //Line following -------------------------------------------------
-                if(QRDRIGHT > threshold && QRDLEFT < threshold){//right see black
+                if(QRDRIGHT > qrdThreshold && QRDLEFT < qrdThreshold){//right see black
                     RMSPEED = 0;
-//                    LED1 = 1;
-//                    LMSPEED = 413;  
                 }
                 else{
                     RMSPEED = RMFWDSPEED;
-//                    LED1 = 0;
                 }
-                if(QRDLEFT > threshold && QRDRIGHT < threshold){//left see black
+                if(QRDLEFT > qrdThreshold && QRDRIGHT < qrdThreshold){//left see black
                     LMSPEED = 0;
-//                    LED2 = 1;
-//                    RMSPEED = 413;
                 }
                 else{
-//                    LED2 = 0;
                     LMSPEED = LMFWDSPEED;
                 }
                
@@ -460,26 +467,26 @@ int main(void) {
                
             // this makes sure that task is not incorrectly triggered
             case TASK:
-                if(QRDTASK < threshold){//task sees white
+                if(QRDTASK < qrdThreshold){//task sees white
                     _TON = 0;
                     if(TMR1 > lineTime){
-//                        LED1 = 0;
-//                        LED2 = 1;
-                        LMSPEED = 313;
-                        RMSPEED = 313;
-                        numLines = countLines();
+                        LMFWDSPEED = 313;
+                        RMFWDSPEED = 313;//error 
+                        stepsThreshold = 800;//how far the bot goes to pass 3 lines, abt 1/3 a block
+                        steps = 0;//reset
+                        _OC1IE = 1;//start count
+                        taskDetecting = true;
+                        numLines = 1;
+//                        numLines = countLines(); //error delete
                     }
                     state = LINE;
-//                    LMSPEED = LMFWDSPEED;
-//                    RMSPEED = RMFWDSPEED;
                     TMR1 = 0;
-    //                _TON = 0;
                 }
                 break;
                
             // this makes sure that end is not incorrectly triggered
             case END:
-                if(QRDEND < threshold){//task sees white
+                if(QRDEND < qrdThreshold){//task sees white
                     _TON = 0;
                     if(TMR1 > 110){
 //                                          LED1 = 1;
@@ -495,7 +502,7 @@ int main(void) {
                 break;
                
             case COLLECTION:
-                if (QRDLEFT > threshold || QRDRIGHT > threshold) { //EITHER sees black
+                if (QRDLEFT > qrdThreshold || QRDRIGHT > qrdThreshold) { //EITHER sees black
                         state = CHECKLINE;
                         TMR1 = 0;
                         _TON = 1;
@@ -513,7 +520,7 @@ int main(void) {
                         resetDefaultMotors();
                         turnRight(TURNNINETY);
                         steps=0;
-                        N = 1060;
+                        stepsThreshold = 1060;
                         resetDefaultMotors();
                         canyon_state = TURNRIGHT;
                         }
@@ -550,22 +557,22 @@ int main(void) {
                         turnRight(READJUST);
                         resetDefaultMotors();
                         }
-                      if (steps > N) {
+                      if (steps > stepsThreshold) {
                           // return to forward
-                        N = 0;
+                        stepsThreshold = 0;
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                       }
                       break;    
                 }
-//                if (QRDLEFT > threshold || QRDRIGHT > threshold) {
+//                if (QRDLEFT > qrdThreshold || QRDRIGHT > qrdThreshold) {
 //                    state = CHECKLINE;
 //                    TMR1 = 0;
 //                    _TON = 1;
 //                }
 //                break;  
             case CHECKLINE:
-                if(QRDLEFT < threshold && QRDRIGHT < threshold){//both see white
+                if(QRDLEFT < qrdThreshold && QRDRIGHT < qrdThreshold){//both see white
                     _TON = 0;
                     if(TMR1 > 100){
                         forwardAdjust(145);
