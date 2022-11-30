@@ -14,15 +14,18 @@
 #define SERVO OC3R
 #define LASER _LATB12
 
-int RMFWDSPEED = 175;//175
-int LMFWDSPEED = 175;
+int RMFWDSPEED = 120;//175
+int LMFWDSPEED = 120;
 #define TURNSPEED 250
 #define TURNNINETY 900
 #define SWITCHDIRCOUNT 1050
-#define READJUST 150 //50
+#define READJUST 50
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
-#define QRDSCALE 0.25
+#define QRDPSCALE 0.15
+#define QRDISCALE 0.001
+#define QRDERRORTHRESHOLD 300
+#define NEGERRORADJUST 35
 
 #define LED2 _LATB4
 #define LED1 _LATA4
@@ -40,8 +43,12 @@ int LMFWDSPEED = 175;
 int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
-int qrdLowerThreshold = 10000;
-int qrdThreshold = 2500; //QRD qrdThreshold 1250?
+//int qrdWhiteThreshold = 1600; // 12 bit adc so 4096 corresponds to 3.3 V. When it reads black it reads in about 1.5V
+int qrdBlackThreshold = 2000; //QRD qrdBlackThreshold 1250?
+int qrdLeftError = 0;
+int qrdRightError = 0;
+long int leftErrorTotal = 0;
+long int rightErrorTotal = 0;
 int lineTime = 50;
 int delayCount = 0;
 
@@ -204,13 +211,13 @@ void Sampledump()
    //125 for min angle.
 //read ball
 SERVO=375;
- //   qrdThreshold=1250
+ //   qrdBlackThreshold=1250
 //if (QRDBALL >= 800)
 //    {
 //        right=0;
 //    }    
 //move ball to either side depending on QRD value
-if (QRDBALL >= qrdThreshold)
+if (QRDBALL >= qrdBlackThreshold)
     {
  //   _LATA4=1;
      SERVO=205;  
@@ -236,12 +243,13 @@ int countLines(){
     while(steps < stepsThreshold){
 //        RMSPEED = 313;
 //        LMSPEED = 313;
-        if(QRDTASK > qrdThreshold && onBlack == 0 ){//task sees black
+        if(QRDTASK > qrdBlackThreshold && onBlack == 0 ){//task sees black
             //bool = true
             onBlack = 1;  
             LED1 = 1;
         }
-        if(onBlack == 1 && QRDTASK < qrdThreshold){//task sees white again
+        if(onBlack == 1 && QRDTASK < qrdBlackThreshold){//task sees white again
+//        if(onBlack == 1 && QRDTASK < qrdWhiteThreshold){//task sees white again
             //bool = false
             onBlack = 0;
             LED1 = 0;
@@ -364,7 +372,7 @@ int main(void) {
             case LINE:
                
                   // THE END ---------------------------------------------------   
-//                if(QRDEND > qrdThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
+//                if(QRDEND > qrdBlackThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                     TMR1 = 0;
 //                     _TON = 1;
 //                     LED2 = 1;
@@ -401,7 +409,7 @@ int main(void) {
                 }
                 
                //Equipment servicing ----------------------------------------
-//                if(EQSERVICE > 400 ){//ir at qrdThreshold
+//                if(EQSERVICE > 400 ){//ir at qrdBlackThreshold
 //                    LED1 = 1;
 //                    doCollect = 1;
 //                    isTimerUp = 1;
@@ -409,18 +417,17 @@ int main(void) {
                
                 //Count lines ----------------------------------------------
                 if(taskDetecting == false){
-                        if(QRDTASK > qrdThreshold){//task sees black
+                        if(QRDTASK > qrdBlackThreshold){//task sees black
                                 //start timer
                                 TMR1 = 0;
                                 _TON = 1;
                                 state = TASK;
                             }
                 }else{
-                        if(QRDTASK > qrdThreshold && onBlack == false){//task sees black
+                        if(QRDTASK > qrdBlackThreshold && onBlack == false){//task sees black
                             onBlack = true;  
                         }
-                        if(onBlack == true && QRDTASK < qrdThreshold){//task sees white again
-                            hesitate(100);
+                        if(onBlack == true && QRDTASK < qrdBlackThreshold){//task sees white again
                             onBlack = false;
                             numLines ++;        //add to count
                         }
@@ -445,31 +452,43 @@ int main(void) {
                             taskDetecting = false;
                             _OC1IE = 0;//stop count
                             onBlack = false;
-                            LMFWDSPEED = 175;
-                            RMFWDSPEED = 175;//error 
+                            LMFWDSPEED = 100;
+                            RMFWDSPEED = 100;//error 
                             hesitate(100);
                         }
                 }
+//                -----PI Controller for line following
+                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+                if (qrdLeftError < 0) qrdLeftError = qrdLeftError*NEGERRORADJUST;
+                if (qrdRightError < 0) qrdRightError = qrdRightError*NEGERRORADJUST;
+                leftErrorTotal += qrdLeftError;
+                rightErrorTotal += qrdRightError;
+                if (leftErrorTotal < 0) leftErrorTotal = 0;
+                if (rightErrorTotal < 0) rightErrorTotal = 0;
                 
-                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDSCALE;
-                LMSPEED = LMFWDSPEED + QRDLEFT*QRDSCALE;
+                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+                
+//                if (LMSPEED < (LMFWDSPEED + 50) && QRDLEFT > qrdBlackThreshold) leftErrorTotal += 100000;
+//                if (RMSPEED < (RMFWDSPEED + 50) && QRDRIGHT > qrdBlackThreshold) rightErrorTotal += 100000;
                 
                 //Line following -------------------------------------------------
-//                if(QRDRIGHT > qrdThreshold && QRDLEFT < qrdThreshold){//right see black
+//                if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){//right see black
 //                    RMSPEED = 0;
 //                    LMSPEED = LMFWDSPEED;
 //                }
 ////                else{
 ////                    RMSPEED = RMFWDSPEED;
 ////                }
-//                if(QRDLEFT > qrdThreshold && QRDRIGHT < qrdThreshold){//left see black
+//                if(QRDLEFT > qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//left see black
 //                    LMSPEED = 0;
 //                    RMSPEED = RMFWDSPEED;
 //                }
 ////                else{
 ////                    LMSPEED = LMFWDSPEED;
 ////                }
-//                if (QRDLEFT < qrdThreshold && QRDRIGHT < qrdThreshold) {
+//                if (QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold) {
 //                    LMSPEED = LMFWDSPEED;
 //                    RMSPEED = RMFWDSPEED;
 //                }
@@ -478,7 +497,7 @@ int main(void) {
                
             // this makes sure that task is not incorrectly triggered
             case TASK:
-                if(QRDTASK < qrdThreshold){//task sees white
+                if(QRDTASK < qrdBlackThreshold){//task sees white
                     _TON = 0;
                     if(TMR1 > lineTime){
                         LMFWDSPEED = 313;
@@ -497,7 +516,7 @@ int main(void) {
                
             // this makes sure that end is not incorrectly triggered
             case END:
-                if(QRDEND < qrdThreshold){//task sees white
+                if(QRDEND < qrdBlackThreshold){//task sees white
                     _TON = 0;
                     if(TMR1 > 110){
 //                                          LED1 = 1;
@@ -513,7 +532,7 @@ int main(void) {
                 break;
                
             case COLLECTION:
-                if (QRDLEFT > qrdThreshold || QRDRIGHT > qrdThreshold) { //EITHER sees black
+                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) { //EITHER sees black
                         state = CHECKLINE;
                         TMR1 = 0;
                         _TON = 1;
@@ -535,18 +554,18 @@ int main(void) {
                         resetDefaultMotors();
                         canyon_state = TURNRIGHT;
                         }
-                      if (!_RB8) { // right side detects a wall
-                        goBackwards(READJUST);
-                        resetDefaultMotors();
-                        turnLeft(READJUST);
-                        resetDefaultMotors();
-                        }
-                      if (!_RB15) { // left side detects a wall
-                        goBackwards(READJUST);
-                        resetDefaultMotors();
-                        turnRight(READJUST);
-                        resetDefaultMotors();
-                        }
+//                      if (!_RB8) { // right side detects a wall
+//                        goBackwards(READJUST);
+//                        resetDefaultMotors();
+//                        turnLeft(READJUST);
+//                        resetDefaultMotors();
+//                        }
+//                      if (!_RB15) { // left side detects a wall
+//                        goBackwards(READJUST);
+//                        resetDefaultMotors();
+//                        turnRight(READJUST);
+//                        resetDefaultMotors();
+//                        }
                         break;
                     case TURNRIGHT:
                       if (!_RB7){
@@ -556,18 +575,18 @@ int main(void) {
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                         }
-                      if (!_RB8) { // right side detects a wall
-                        goBackwards(READJUST);
-                        resetDefaultMotors();
-                        turnLeft(READJUST);
-                        resetDefaultMotors();
-                        }
-                      if (!_RB15) { // left side detects a wall
-                        goBackwards(READJUST);
-                        resetDefaultMotors();
-                        turnRight(READJUST);
-                        resetDefaultMotors();
-                        }
+//                      if (!_RB8) { // right side detects a wall
+//                        goBackwards(READJUST);
+//                        resetDefaultMotors();
+//                        turnLeft(READJUST);
+//                        resetDefaultMotors();
+//                        }
+//                      if (!_RB15) { // left side detects a wall
+//                        goBackwards(READJUST);
+//                        resetDefaultMotors();
+//                        turnRight(READJUST);
+//                        resetDefaultMotors();
+//                        }
                       if (steps > stepsThreshold) {
                           // return to forward
                         stepsThreshold = 0;
@@ -576,14 +595,27 @@ int main(void) {
                       }
                       break;    
                 }
-//                if (QRDLEFT > qrdThreshold || QRDRIGHT > qrdThreshold) {
+                
+                if (!_RB8) { // right side detects a wall
+                    goBackwards(READJUST);
+                    resetDefaultMotors();
+                    turnLeft(READJUST);
+                    resetDefaultMotors();
+                }
+                if (!_RB15) { // left side detects a wall
+                    goBackwards(READJUST);
+                    resetDefaultMotors();
+                    turnRight(READJUST);
+                    resetDefaultMotors();
+                }
+//                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) {
 //                    state = CHECKLINE;
 //                    TMR1 = 0;
 //                    _TON = 1;
 //                }
 //                break;  
             case CHECKLINE:
-                if(QRDLEFT < qrdThreshold && QRDRIGHT < qrdThreshold){//both see white
+                if(QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//both see white
                     _TON = 0;
                     if(TMR1 > 100){
                         forwardAdjust(145);
