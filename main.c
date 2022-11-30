@@ -22,6 +22,7 @@ int LMFWDSPEED = 175;
 #define READJUST 150 //50
 #define PIVOTNINETY 450
 #define SERVOPERIOD 5000
+#define QRDSCALE 0.25
 
 #define LED2 _LATB4
 #define LED1 _LATA4
@@ -39,7 +40,8 @@ int LMFWDSPEED = 175;
 int servoDC = 313;
 int steps = 0;
 int isTimerUp = 0;
-int qrdThreshold = 1250; //QRD qrdThreshold 1250?
+int qrdLowerThreshold = 10000;
+int qrdThreshold = 2500; //QRD qrdThreshold 1250?
 int lineTime = 50;
 int delayCount = 0;
 
@@ -418,6 +420,7 @@ int main(void) {
                             onBlack = true;  
                         }
                         if(onBlack == true && QRDTASK < qrdThreshold){//task sees white again
+                            hesitate(100);
                             onBlack = false;
                             numLines ++;        //add to count
                         }
@@ -448,20 +451,28 @@ int main(void) {
                         }
                 }
                 
+                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDSCALE;
+                LMSPEED = LMFWDSPEED + QRDLEFT*QRDSCALE;
+                
                 //Line following -------------------------------------------------
-                if(QRDRIGHT > qrdThreshold && QRDLEFT < qrdThreshold){//right see black
-                    RMSPEED = 0;
-                }
-                else{
-                    RMSPEED = RMFWDSPEED;
-                }
-                if(QRDLEFT > qrdThreshold && QRDRIGHT < qrdThreshold){//left see black
-                    LMSPEED = 0;
-                }
-                else{
-                    LMSPEED = LMFWDSPEED;
-                }
-               
+//                if(QRDRIGHT > qrdThreshold && QRDLEFT < qrdThreshold){//right see black
+//                    RMSPEED = 0;
+//                    LMSPEED = LMFWDSPEED;
+//                }
+////                else{
+////                    RMSPEED = RMFWDSPEED;
+////                }
+//                if(QRDLEFT > qrdThreshold && QRDRIGHT < qrdThreshold){//left see black
+//                    LMSPEED = 0;
+//                    RMSPEED = RMFWDSPEED;
+//                }
+////                else{
+////                    LMSPEED = LMFWDSPEED;
+////                }
+//                if (QRDLEFT < qrdThreshold && QRDRIGHT < qrdThreshold) {
+//                    LMSPEED = LMFWDSPEED;
+//                    RMSPEED = RMFWDSPEED;
+//                }
                 break;
                            
                
