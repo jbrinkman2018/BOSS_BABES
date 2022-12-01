@@ -1,4 +1,3 @@
-//hello
 #define true 1
 #define false 0
 
@@ -15,25 +14,26 @@
 #define SERVO OC3R
 #define LASER _LATB12
 
-int RMFWDSPEED = 120;//175
-int LMFWDSPEED = 120;
-#define TURNSPEED 250
-#define TURNNINETY 900
-#define SWITCHDIRCOUNT 1050
-#define READJUST 50
-#define PIVOTNINETY 450
-#define SERVOPERIOD 5000
-#define QRDPSCALE 0.15
-#define QRDISCALE 0.001
-#define QRDERRORTHRESHOLD 300
+int RMFWDSPEED = 1500;//4000000/2000;//clk speed divided by (steps per second*2) equals 120//have /800 for old 313
+int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
+#define TURNSPEED 4000//250
+#define TURNNINETY 14400//900
+#define SWITCHDIRCOUNT 16800//1050
+#define READJUST 800//50
+#define PIVOTNINETY 2400//450
+#define SERVOPERIOD 80000//5000
+#define QRDPSCALE 2.6//0.15
+#define QRDISCALE .016//0.001
+#define QRDERRORTHRESHOLD 400 //300
 #define NEGERRORADJUST 35
-
+#define TIMERSCALER 2987 //16*256 or the difference between the oscillators times the postscalar
+//BUT jared multipled by 11.66666 not 16
 #define LED2 _LATB4
 #define LED1 _LATA4
 #include "xc.h"
 
 #pragma config ICS = PGx3
-#pragma config FNOSC = LPFRC //500khz osc
+#pragma config FNOSC = FRC //500khz osc
 #pragma config FWDTEN=OFF
 #pragma config WINDIS=OFF
 //#pragma config MCLRE = OFF //see useful tips to understand when to use this
@@ -50,7 +50,7 @@ int qrdLeftError = 0;
 int qrdRightError = 0;
 long int leftErrorTotal = 0;
 long int rightErrorTotal = 0;
-int lineTime = 50;
+int lineTime = 800*TIMERSCALER;//50;
 int delayCount = 0;
 
 //Interrupt Functions -------------------------
@@ -135,8 +135,9 @@ void hesitate(int length){
     RMSPEED = 0;
     LMSPEED = 0;
     TMR1 = 0;
+    _TCKPS = 0b11;
     _TON = 1;
-    while(TMR1 < length){ }//lets waste time for a little over a second
+    while(TMR1 < length*TIMERSCALER){ }//lets waste time for a little over a second
     _TON = 0;
 
 }
@@ -341,7 +342,7 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = LINE;
+    state = TESTSERVO;
 //    state = TESTSERVO;
 
 // Set Initial Values ----------------------------------------------------------
@@ -367,7 +368,34 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO://used for testing purposes
-
+                
+//                if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){//right see black
+//                    RMSPEED = 0;
+//                    LMSPEED = LMFWDSPEED;
+//                }
+////                else{
+////                    RMSPEED = RMFWDSPEED;
+////                }
+//                if(QRDLEFT > qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//left see black
+//                    LMSPEED = 0;
+//                    RMSPEED = RMFWDSPEED;
+//                }
+////                else{
+////                    LMSPEED = LMFWDSPEED;
+////                }
+//                if (QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold) {
+//                    LMSPEED = LMFWDSPEED;
+//                    RMSPEED = RMFWDSPEED;
+//                }
+                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+                leftErrorTotal += qrdLeftError;
+                rightErrorTotal += qrdRightError;
+                if (qrdLeftError < 0)  leftErrorTotal = 0;
+                if (qrdRightError < 0) rightErrorTotal = 0;
+                
+                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
             break;    
            
             case LINE:
@@ -375,6 +403,7 @@ int main(void) {
                   // THE END ---------------------------------------------------   
 //                if(QRDEND > qrdBlackThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                     TMR1 = 0;
+//                _TCKPS = 0b11;
 //                     _TON = 1;
 //                     LED2 = 1;
 //                     state = END;
@@ -386,6 +415,7 @@ int main(void) {
                 if(isTimerUp == 1 && doDrop ==1){
                     T2CONbits.TON = 0;
                     TMR2 = 0;
+                    T2CONbits.TCKPS = 0b11;
                     doDrop = 0;
                     isTimerUp = 0;
                     hesitate(800);
@@ -396,6 +426,7 @@ int main(void) {
                 if(isTimerUp == 1 && doCollect ==1){
                     T2CONbits.TON = 0;
                     TMR2 = 0;
+                    T2CONbits.TCKPS = 0b11;
                     doCollect = 0;
                     isTimerUp = 0;
                     _OC1IE = 1; //eRROR should this be in all of the functions?
@@ -421,6 +452,7 @@ int main(void) {
                         if(QRDTASK > qrdBlackThreshold){//task sees black
                                 //start timer
                                 TMR1 = 0;
+                                _TCKPS = 0b11;
                                 _TON = 1;
                                 state = TASK;
                             }
@@ -438,11 +470,13 @@ int main(void) {
                                 case 2://collect ball
                                    doCollect = 1;
                                    TMR2 = 0;
+                                   T2CONbits.TCKPS = 0b11;
                                    T2CONbits.TON = 1;
                                     break;
                                 case 3://drop ball
                                     doDrop = 1;
                                    TMR2 = 0;
+                                   T2CONbits.TCKPS = 0b11;
                                    T2CONbits.TON = 1;
                                 break;
                                 case 4://canyon
@@ -470,6 +504,7 @@ int main(void) {
                 
                 RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
                 LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+                
                 
 //                if (LMSPEED < (LMFWDSPEED + 50) && QRDLEFT > qrdBlackThreshold) leftErrorTotal += 100000;
 //                if (RMSPEED < (RMFWDSPEED + 50) && QRDRIGHT > qrdBlackThreshold) rightErrorTotal += 100000;
@@ -512,6 +547,7 @@ int main(void) {
                     }
                     state = LINE;
                     TMR1 = 0;
+                    _TCKPS = 0b11;
                 }
                 break;
                
@@ -519,13 +555,15 @@ int main(void) {
             case END:
                 if(QRDEND < qrdBlackThreshold){//task sees white
                     _TON = 0;
-                    if(TMR1 > 110){
+                    if(TMR1 > 110*TIMERSCALER){
 //                                          LED1 = 1;
 
                         theEnd();
                     }
                     state = LINE;
                     TMR1 = 0;
+                    _TCKPS = 0b11;
+                    
                    
 //                     LED2 = 0;
     //                _TON = 0;
@@ -536,6 +574,7 @@ int main(void) {
                 if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) { //EITHER sees black
                         state = CHECKLINE;
                         TMR1 = 0;
+                        _TCKPS = 0b11;
                         _TON = 1;
                     }
                 break;
@@ -612,13 +651,14 @@ int main(void) {
 //                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) {
 //                    state = CHECKLINE;
 //                    TMR1 = 0;
+ //               _TCKPS = 0b11;
 //                    _TON = 1;
 //                }
 //                break;  
             case CHECKLINE:
                 if(QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//both see white
                     _TON = 0;
-                    if(TMR1 > 100){
+                    if(TMR1 > 100*TIMERSCALER){
                         forwardAdjust(145);
                         turnRight2(PIVOTNINETY);
                         resetDefaultMotors();
@@ -628,6 +668,7 @@ int main(void) {
                         state = CANYON;
                     }
                     TMR1 = 0;
+                    _TCKPS = 0b11;
                 }
                 break;
         }
@@ -770,9 +811,9 @@ void configPWM(){
 
 void configTimer(){
     T1CON = 0;
-    _TCKPS = 0b11;  // 1:256
-    _TCS = 0;       // Internal clock source 31khz
+    _TCS = 0;       // Internal clock source 8MHz
     TMR1 = 0;       // Reset Timer1
+    _TCKPS = 0b11;  // 1:256
     _TON = 0;       // Turn Timer1 off
    
         // Configure Timer1 interrupt
@@ -784,14 +825,15 @@ void configTimer(){
    
     //TIMER 2 -------------------------------
     T2CON = 0;
-    T2CONbits.TCKPS = 0b11;  // 1:256
     T2CONbits.TCS = 0;       // Internal clock source 31khz
     TMR2 = 0;       // Reset Timer1
+    T2CONbits.TCKPS = 0b11;  // 1:256
+
     T2CONbits.TON = 0;       // Turn Timer1 off
    
         // Configure Timer1 interrupt
     _T2IP = 4; // Select interrupt priority
     _T2IF = 0; // Clear interrupt flag
     _T2IE = 1; // Enable interrupt
-    PR2 = 450; // Timer period of 9688 or 5 sec
+    PR2 = 450*TIMERSCALER; // Timer period of 9688 or 5 sec
 }
