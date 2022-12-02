@@ -8,7 +8,7 @@
 #define QRDTASK ADC1BUF0 // pin2 or A0
 #define QRDBALL ADC1BUF14 // pin8 or A3
 #define SATDETECT ADC1BUF10 //pin 17 or B14
-#define EQSERVICE ADC1BUF15 //pin 9 or B4 //SERVICING
+#define EQSERVICE ADC1BUF12 //pin 9 or B4 //SERVICING
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
 #define SERVO OC3R
@@ -16,17 +16,17 @@
 
 int RMFWDSPEED = 1500;//4000000/2000;//clk speed divided by (steps per second*2) equals 120//have /800 for old 313
 int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
-#define TURNSPEED 4000//250
-#define TURNNINETY 14400//900
-#define SWITCHDIRCOUNT 16800//1050
-#define READJUST 800//50
-#define PIVOTNINETY 2400//450
+#define TURNSPEED 4500//250
+#define TURNNINETY 900//14400(Jared's val))
+#define PIVOTNINETY 892//2400(jared's val))
+#define SWITCHDIRCOUNT 1910//16800(Jared's val))
+#define READJUST 50 //800(Jared's val))
 #define SERVOPERIOD 80000//5000
 #define QRDPSCALE 2.6//0.15
 #define QRDISCALE .016//0.001
 #define QRDERRORTHRESHOLD 400 //300
 #define NEGERRORADJUST 35
-#define TIMERSCALER 2987 //16*256 or the difference between the oscillators times the postscalar
+#define TIMERSCALER 16 //16*256 or the difference between the oscillators times the postscalar
 //BUT jared multipled by 11.66666 not 16
 #define LED2 _LATB4
 #define LED1 _LATA4
@@ -43,14 +43,15 @@ int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
 //Global variables
 int servoDC = 313;
 int steps = 0;
+int servosteps=0;
 int isTimerUp = 0;
-//int qrdWhiteThreshold = 1600; // 12 bit adc so 4096 corresponds to 3.3 V. When it reads black it reads in about 1.5V
+int qrdWhiteThreshold = 3000; // 12 bit adc so 4096 corresponds to 3.3 V. When it reads black it reads in about 1.5V
 int qrdBlackThreshold = 2000; //QRD qrdBlackThreshold 1250?
 int qrdLeftError = 0;
 int qrdRightError = 0;
 long int leftErrorTotal = 0;
 long int rightErrorTotal = 0;
-int lineTime = 800*TIMERSCALER;//50;
+int lineTime = 300;//50;
 int delayCount = 0;
 
 //Interrupt Functions -------------------------
@@ -73,17 +74,21 @@ void turnRight(int stepsThreshold){
         _LATA1 = 0;
         RMSPEED = TURNSPEED;
     }
+   
 }
-void turnRight2(int stepsThreshold){
+void rightPivot(int stepsThreshold){
+ 
+   _LATB9=1;
+   _LATA1 = 0;
     steps = 0;  //restart step count
     while(steps<stepsThreshold){
         LMSPEED = TURNSPEED;
         RMSPEED = TURNSPEED;
-        _LATB9=1;
-        _LATA1 = 0;
     }
+      
 }
 void turnLeft(int stepsThreshold){
+
     steps = 0;  //restart step count
     while(steps<stepsThreshold){
     //    _LATB1 = 1;
@@ -93,9 +98,10 @@ void turnLeft(int stepsThreshold){
        LMSPEED = TURNSPEED;
         RMSPEED = TURNSPEED;
     }
+
 }
 
-void turnLeft2(int stepsThreshold){
+void leftPivot(int stepsThreshold){ 
     steps = 0;
     while (steps<stepsThreshold){
         LMSPEED = TURNSPEED;
@@ -112,15 +118,16 @@ void goBackwards(int stepsThreshold){
         _LATA1 = 1;
         LMSPEED = TURNSPEED;
         RMSPEED = TURNSPEED;
-    }
+    }  
 }
 
 void forwardAdjust(int stepsThreshold){
     steps = 0;
-
+  _LATB9 = 0;
+  _LATA1 = 0;
     while (steps<stepsThreshold){
-        LMSPEED = LMFWDSPEED;
-        RMSPEED = RMFWDSPEED;
+        LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
     }
 }
 
@@ -132,8 +139,8 @@ void delay (long int s) {
 }
 
 void hesitate(int length){
-    RMSPEED = 0;
     LMSPEED = 0;
+    RMSPEED = 0;
     TMR1 = 0;
     _TCKPS = 0b11;
     _TON = 1;
@@ -142,8 +149,8 @@ void hesitate(int length){
 
 }
 void resetDefaultMotors(){
-        LMSPEED = LMFWDSPEED;
-        RMSPEED = RMFWDSPEED;
+        LMSPEED = TURNSPEED;
+        RMSPEED = TURNSPEED;
         _LATA1 = 0;
         _LATB9 = 0;
 }
@@ -151,8 +158,8 @@ void resetDefaultMotors(){
 
 void Satellite(){
     _OC3IE = 1;
-    SERVO = 260;
-    steps = 260;
+    SERVO = 260;//I added the 16 because we switched the occilator(8Mhz))
+    servosteps = 260;
     LED1 = 0;
 //    delay(30);
     int keepServo = 0;
@@ -164,7 +171,7 @@ void Satellite(){
 //        }else LED1 = 0;
 //    }
     //increment servo and read in the IR values
-    while(steps < 540){//what end val?
+    while(servosteps < 540){//what end val?
 //        LED1 = 1;
         if(SATDETECT > maxIR){
             keepServo = SERVO;
@@ -197,13 +204,13 @@ void theEnd(){//NOTE: this must come after the satellite function
 //        //Determine the number of steps for turn
    
     forwardAdjust(400);
-    turnRight2(PIVOTNINETY);
+    rightPivot(PIVOTNINETY);
     goBackwards(2100);
     LMSPEED = 0;
     RMSPEED = 0;
     Satellite();
     while(1){}
-   
+  
 }
 
 void Sampledump()
@@ -212,7 +219,7 @@ void Sampledump()
    //625 for max angle.
    //125 for min angle.
 //read ball
-SERVO=375;
+SERVO=375*16;
  //   qrdBlackThreshold=1250
 //if (QRDBALL >= 800)
 //    {
@@ -222,12 +229,12 @@ SERVO=375;
 if (QRDBALL >= qrdBlackThreshold)
     {
  //   _LATA4=1;
-     SERVO=205;  
+     SERVO=205*16;  
     }
 else
     {
 //    _LATA4=0;
-     SERVO=540;  
+     SERVO=540*16;  
     }
 }
 
@@ -250,7 +257,7 @@ int countLines(){
             onBlack = 1;  
             LED1 = 1;
         }
-        if(onBlack == 1 && QRDTASK < qrdBlackThreshold){//task sees white again
+        if(onBlack == 1 && QRDTASK < qrdWhiteThreshold){//task sees white again
 //        if(onBlack == 1 && QRDTASK < qrdWhiteThreshold){//task sees white again
             //bool = false
             onBlack = 0;
@@ -312,8 +319,7 @@ int main(void) {
     _ANSB4 = 0;
     _TRISB4 = 0; //THESE need to be uncommented to use the second led
     _ANSB12 = 0;
-    _TRISB12 = 0;
-   
+   _TRISB9 = 0;
 //    _ANSB15 = 0;
 //    _TRISB15 = 0;
 //    _ANSA4 = 0;
@@ -342,24 +348,26 @@ int main(void) {
     enum {LINE, CANYON, END, TASK, CHECKLINE, COLLECTION, TESTSERVO} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
-    state = TESTSERVO;
+    state = LINE;
 //    state = TESTSERVO;
 
 // Set Initial Values ----------------------------------------------------------
 //    _TON = 1;
     RMSPEED = RMFWDSPEED;
     LMSPEED = LMFWDSPEED; // ERROR, MAKE THIS 1500
+             //   RMFWDSPEED=0;
+          //      LMFWDSPEED=0;
     OC1R = LMFWDSPEED/2;
     OC2R = RMFWDSPEED/2;
    LED1 =0;
    LED2 = 0;
-    _OC1IE = 0;
-
+   _OC1IE=1;
+   _OC2IE=1;
 //------------------------loop-------------------------------
     //start
 //    hesitate(800);
-//    forwardAdjust(2000);
-//    turnLeft2(PIVOTNINETY);
+    forwardAdjust(300);
+//    leftPivot(PIVOTNINETY);
 //    resetDefaultMotors();
 
 //    theEnd();
@@ -369,6 +377,91 @@ int main(void) {
            
             case TESTSERVO://used for testing purposes
                 
+//                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+//                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+//                leftErrorTotal += qrdLeftError;
+//                rightErrorTotal += qrdRightError;
+//                if (qrdLeftError < 0)  leftErrorTotal = 0;
+//                if (qrdRightError < 0) rightErrorTotal = 0;
+//               
+//                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+//                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+//                
+//                if (QRDTASK >qrdBlackThreshold) {
+////                _TCKPS = 0b11;
+//                    _TON = 1;
+//                    TMR1 = 0;
+//                    while (TMR1 < lineTime){
+//                        
+//                    }
+//                    hesitate(1000);
+//                }
+//                rightPivot(PIVOTNINETY);
+//    OC1R = 0;
+//    OC2R = 0;
+//                delay(30000);
+//                hesitate(8000);
+
+                
+//                if(EQSERVICE > 1500)//1500 was my val
+//                {
+////                    if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){
+////                        while(QRDRIGHT > qrdBlackThreshold)
+////                            {rightPivot(10);
+////                            hesitate(100);
+////                            }
+////                    }
+////                    else if(QRDLEFT > qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold){
+////                        while(QRDLEFT > qrdBlackThreshold)
+////                            {leftPivot(10);
+////                            hesitate(100);
+////                            }
+////                    }
+////                    else{   
+////                     hesitate(10000);   
+////                    }
+//               forwardAdjust(10000);
+//                resetDefaultMotors();
+//                    forwardAdjust(100);
+//                    resetDefaultMotors();
+//                    leftPivot(PIVOTNINETY);
+//                    resetDefaultMotors();
+//                    delay(10000);
+//                    goBackwards(200);
+//                    delay(10000);
+//                   resetDefaultMotors();
+//                    delay(10000);
+//                    forwardAdjust(200);
+//                    resetDefaultMotors();
+                    rightPivot(PIVOTNINETY);
+                    forwardAdjust(2000);
+                    rightPivot(SWITCHDIRCOUNT);
+                    forwardAdjust(2000);
+//                    resetDefaultMotors();
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+//                    delay(65000);
+         
+//                if(!_RB7)
+//                {
+//                SERVO = 200*16;
+//                }
+   //            OC1R = 0;
+//                     OC2R = 0;
+//                    hesitate(8000);
+//                    hesitate(8000);
+//                    resetDefaultMotors();
+//                }
+//                else
+//                {
+//                SERVO=450*16;
+//                }
 //                if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){//right see black
 //                    RMSPEED = 0;
 //                    LMSPEED = LMFWDSPEED;
@@ -387,20 +480,45 @@ int main(void) {
 //                    LMSPEED = LMFWDSPEED;
 //                    RMSPEED = RMFWDSPEED;
 //                }
-                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
-                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
-                leftErrorTotal += qrdLeftError;
-                rightErrorTotal += qrdRightError;
-                if (qrdLeftError < 0)  leftErrorTotal = 0;
-                if (qrdRightError < 0) rightErrorTotal = 0;
-                
-                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
-                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+
             break;    
            
             case LINE:
-               
-                  // THE END ---------------------------------------------------   
+                               if(EQSERVICE > 1500)//1500 was my val
+                {
+//                    if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){
+//                        while(QRDRIGHT > qrdBlackThreshold)
+//                            {rightPivot(10);
+//                            hesitate(100);
+//                            }
+//                    }
+//                    else if(QRDLEFT > qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold){
+//                        while(QRDLEFT > qrdBlackThreshold)
+//                            {leftPivot(10);
+//                            hesitate(100);
+//                            }
+//                    }
+//                    else{   
+//                     hesitate(10000);   
+//                    }
+//                    forwardAdjust(100);
+//                    resetDefaultMotors();
+//                    leftPivot(PIVOTNINETY);
+//                    resetDefaultMotors();
+//                    goBackwards(200);
+//                    resetDefaultMotors();
+//                    forwardAdjust(200);
+//                    resetDefaultMotors();
+//                    rightPivot(PIVOTNINETY);
+//                    resetDefaultMotors();
+//                    SERVO = 200*16;
+//                    hesitate(8000);
+                     OC1R = 0;
+                     OC2R = 0;
+                    hesitate(800);
+//                    resetDefaultMotors();
+                }
+                  // THE END ---------------------------------------------------  
 //                if(QRDEND > qrdBlackThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                     TMR1 = 0;
 //                _TCKPS = 0b11;
@@ -412,16 +530,18 @@ int main(void) {
 //                     _LATB9 = 0;
 //                     _LATA1 = 0;
 //                 }
+                
                 if(isTimerUp == 1 && doDrop ==1){
                     T2CONbits.TON = 0;
                     TMR2 = 0;
                     T2CONbits.TCKPS = 0b11;
                     doDrop = 0;
                     isTimerUp = 0;
+                    goBackwards(300);
                     hesitate(800);
                     Sampledump();
                     hesitate(2000);
-                    SERVO = 375;
+                    SERVO = 375*16;// SEVERO STUFF WE'LL need to figure out
                 }
                 if(isTimerUp == 1 && doCollect ==1){
                     T2CONbits.TON = 0;
@@ -430,16 +550,17 @@ int main(void) {
                     doCollect = 0;
                     isTimerUp = 0;
                     _OC1IE = 1; //eRROR should this be in all of the functions?
-                   turnLeft2(PIVOTNINETY);
-                   goBackwards(820);
+                    goBackwards(800);
+                   leftPivot(PIVOTNINETY);
+                   goBackwards(1800);
                    hesitate(800);
                    resetDefaultMotors();
-                   forwardAdjust(700);
-                   turnRight2(PIVOTNINETY);
+                   forwardAdjust(1800);
+                   rightPivot(PIVOTNINETY);
                    resetDefaultMotors();
                    _OC1IE = 0;
                 }
-                
+               
                //Equipment servicing ----------------------------------------
 //                if(EQSERVICE > 400 ){//ir at qrdBlackThreshold
 //                    LED1 = 1;
@@ -487,28 +608,42 @@ int main(void) {
                             taskDetecting = false;
                             _OC1IE = 0;//stop count
                             onBlack = false;
-                            LMFWDSPEED = 100;
-                            RMFWDSPEED = 100;//error 
+                            LMFWDSPEED = 1500;
+                            RMFWDSPEED = 1500;//error
                             hesitate(100);
+                            forwardAdjust(300);
                         }
                 }
 //                -----PI Controller for line following
                 qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
                 qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
-                if (qrdLeftError < 0) qrdLeftError = qrdLeftError*NEGERRORADJUST;
-                if (qrdRightError < 0) qrdRightError = qrdRightError*NEGERRORADJUST;
                 leftErrorTotal += qrdLeftError;
                 rightErrorTotal += qrdRightError;
-                if (leftErrorTotal < 0) leftErrorTotal = 0;
-                if (rightErrorTotal < 0) rightErrorTotal = 0;
-                
+                if (qrdLeftError < 0)  leftErrorTotal = 0;
+                if (qrdRightError < 0) rightErrorTotal = 0;
+               
                 RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
                 LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
                 
                 
+                
+//                //Old stuff that I replaced with the code in test servo
+//                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+//                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+//                if (qrdLeftError < 0) qrdLeftError = qrdLeftError*NEGERRORADJUST;
+//                if (qrdRightError < 0) qrdRightError = qrdRightError*NEGERRORADJUST;
+//                leftErrorTotal += qrdLeftError;
+//                rightErrorTotal += qrdRightError;
+//                if (leftErrorTotal < 0) leftErrorTotal = 0;
+//                if (rightErrorTotal < 0) rightErrorTotal = 0;
+//               
+//                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+//                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+               
+               
 //                if (LMSPEED < (LMFWDSPEED + 50) && QRDLEFT > qrdBlackThreshold) leftErrorTotal += 100000;
 //                if (RMSPEED < (RMFWDSPEED + 50) && QRDRIGHT > qrdBlackThreshold) rightErrorTotal += 100000;
-                
+               
                 //Line following -------------------------------------------------
 //                if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){//right see black
 //                    RMSPEED = 0;
@@ -536,9 +671,9 @@ int main(void) {
                 if(QRDTASK < qrdBlackThreshold){//task sees white
                     _TON = 0;
                     if(TMR1 > lineTime){
-                        LMFWDSPEED = 313;
-                        RMFWDSPEED = 313;//error 
-                        stepsThreshold = 800;//how far the bot goes to pass 3 lines, abt 1/3 a block
+                        LMFWDSPEED = 313*16;
+                        RMFWDSPEED = 313*16;//error
+                        stepsThreshold = 2000;//how far the bot goes to pass 3 lines, abt 1/3 a block
                         steps = 0;//reset
                         _OC1IE = 1;//start count
                         taskDetecting = true;
@@ -563,7 +698,7 @@ int main(void) {
                     state = LINE;
                     TMR1 = 0;
                     _TCKPS = 0b11;
-                    
+                   
                    
 //                     LED2 = 0;
     //                _TON = 0;
@@ -611,7 +746,7 @@ int main(void) {
                       if (!_RB7){
                           goBackwards(READJUST);
                           // full 180 turn and go back forward
-                        turnRight2(SWITCHDIRCOUNT);
+                        rightPivot(SWITCHDIRCOUNT);
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                         }
@@ -634,8 +769,8 @@ int main(void) {
                         canyon_state = FORWARD;
                       }
                       break;    
-                }
                 
+               
                 if (!_RB8) { // right side detects a wall
                     goBackwards(READJUST);
                     resetDefaultMotors();
@@ -647,6 +782,8 @@ int main(void) {
                     resetDefaultMotors();
                     turnRight(READJUST);
                     resetDefaultMotors();
+                }
+                      
                 }
 //                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) {
 //                    state = CHECKLINE;
@@ -660,7 +797,7 @@ int main(void) {
                     _TON = 0;
                     if(TMR1 > 100*TIMERSCALER){
                         forwardAdjust(145);
-                        turnRight2(PIVOTNINETY);
+                        rightPivot(PIVOTNINETY);
                         resetDefaultMotors();
 //                        delay(2000);
                         state = LINE;
@@ -689,8 +826,8 @@ void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void){
     _OC3IF = 0; //take down flag
 //    delayCount++;
 //    if(delayCount > 2){
-        steps ++;
-        SERVO = steps;
+        servosteps ++;
+        SERVO = servosteps;
 //        delayCount = 0;
 //    }
 }
@@ -792,7 +929,7 @@ void configPWM(){
     _TRISB1= 0;//ERROR CHECK
              
                    
-    OC3R = 375;
+    OC3R = 375*16;
     //625 for max angle.
    //125 for min angle.      
     OC3RS= SERVOPERIOD;
