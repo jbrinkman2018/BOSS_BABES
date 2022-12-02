@@ -18,7 +18,7 @@ int RMFWDSPEED = 1500;//4000000/2000;//clk speed divided by (steps per second*2)
 int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
 #define TURNSPEED 4500//250
 #define TURNNINETY 900//14400(Jared's val))
-#define PIVOTNINETY 892//2400(jared's val))
+#define PIVOTNINETY 925//892//2400(jared's val))
 #define SWITCHDIRCOUNT 1910//16800(Jared's val))
 #define READJUST 50 //800(Jared's val))
 #define SERVOPERIOD 80000//5000
@@ -202,13 +202,13 @@ void theEnd(){//NOTE: this must come after the satellite function
     _OC1IE =1;
 //    //Determining steps
 //        //Determine the number of steps for turn
-   
-    forwardAdjust(400);
+    hesitate(800);
+    forwardAdjust(500);
     rightPivot(PIVOTNINETY);
-    goBackwards(2100);
+    goBackwards(3000);
     LMSPEED = 0;
     RMSPEED = 0;
-    Satellite();
+//    Satellite();
     while(1){}
   
 }
@@ -515,15 +515,15 @@ int main(void) {
 //                    hesitate(8000);
                      OC1R = 0;
                      OC2R = 0;
-                    hesitate(800);
+                     hesitate(800);
 //                    resetDefaultMotors();
                 }
                   // THE END ---------------------------------------------------  
 //                if(QRDEND > qrdBlackThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                     TMR1 = 0;
-//                _TCKPS = 0b11;
+//                    _TCKPS = 0b11;
 //                     _TON = 1;
-//                     LED2 = 1;
+////                     LED2 = 1;
 //                     state = END;
 //                }
 //                else{
@@ -537,10 +537,9 @@ int main(void) {
                     T2CONbits.TCKPS = 0b11;
                     doDrop = 0;
                     isTimerUp = 0;
-                    goBackwards(300);
                     hesitate(800);
                     Sampledump();
-                    hesitate(2000);
+                    hesitate(800);
                     SERVO = 375*16;// SEVERO STUFF WE'LL need to figure out
                 }
                 if(isTimerUp == 1 && doCollect ==1){
@@ -550,7 +549,6 @@ int main(void) {
                     doCollect = 0;
                     isTimerUp = 0;
                     _OC1IE = 1; //eRROR should this be in all of the functions?
-                    goBackwards(800);
                    leftPivot(PIVOTNINETY);
                    goBackwards(1800);
                    hesitate(800);
@@ -558,7 +556,7 @@ int main(void) {
                    forwardAdjust(1800);
                    rightPivot(PIVOTNINETY);
                    resetDefaultMotors();
-                   _OC1IE = 0;
+                   _OC1IE = 0;//error
                 }
                
                //Equipment servicing ----------------------------------------
@@ -673,7 +671,7 @@ int main(void) {
                     if(TMR1 > lineTime){
                         LMFWDSPEED = 313*16;
                         RMFWDSPEED = 313*16;//error
-                        stepsThreshold = 2000;//how far the bot goes to pass 3 lines, abt 1/3 a block
+                        stepsThreshold = 1000;//how far the bot goes to pass 3 lines, abt 1/3 a block
                         steps = 0;//reset
                         _OC1IE = 1;//start count
                         taskDetecting = true;
@@ -690,7 +688,7 @@ int main(void) {
             case END:
                 if(QRDEND < qrdBlackThreshold){//task sees white
                     _TON = 0;
-                    if(TMR1 > 110*TIMERSCALER){
+                    if(TMR1 > lineTime){
 //                                          LED1 = 1;
 
                         theEnd();
@@ -716,8 +714,8 @@ int main(void) {
                
             case CANYON:
                 _OC1IE =1;
-                LMSPEED = 313;
-                RMSPEED = 313;
+                LMSPEED = 313*16;
+                RMSPEED = 313*16;
                 switch(canyon_state) {
                     case FORWARD:
                       if (!_RB7){
