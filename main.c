@@ -18,9 +18,9 @@ int RMFWDSPEED = 1500;//4000000/2000;//clk speed divided by (steps per second*2)
 int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
 #define TURNSPEED 4500//250
 #define TURNNINETY 900//14400(Jared's val))
-#define PIVOTNINETY 925//892//2400(jared's val))
+#define PIVOTNINETY 950//892//2400(jared's val))
 #define SWITCHDIRCOUNT 1910//16800(Jared's val))
-#define READJUST 50 //800(Jared's val))
+#define READJUST 100 //800(Jared's val))
 #define SERVOPERIOD 80000//5000
 #define QRDPSCALE 2.6//0.15
 #define QRDISCALE .016//0.001
@@ -337,6 +337,7 @@ int main(void) {
     LASER = 1; //turn off laser
     int taskDetecting = false;
     int onBlack = 0;
+    int inCanyon = 0;
    
 
 // Call Configurations -----------------------------------------------------------
@@ -714,18 +715,20 @@ int main(void) {
                
             case CANYON:
                 _OC1IE =1;
-                LMSPEED = 313*16;
-                RMSPEED = 313*16;
+                LMSPEED = 200*16;
+                RMSPEED = 200*16;
                 switch(canyon_state) {
                     case FORWARD:
                       if (!_RB7){
-                        goBackwards(READJUST);
-                        resetDefaultMotors();
-                        turnRight(TURNNINETY);
+                        rightPivot(PIVOTNINETY);
+//                        goBackwards(READJUST);
+//                        resetDefaultMotors();
+//                        turnRight(TURNNINETY);
                         steps=0;
                         stepsThreshold = 1060;
                         resetDefaultMotors();
                         canyon_state = TURNRIGHT;
+                        
                         }
 //                      if (!_RB8) { // right side detects a wall
 //                        goBackwards(READJUST);
@@ -747,56 +750,59 @@ int main(void) {
                         rightPivot(SWITCHDIRCOUNT);
                         resetDefaultMotors();
                         canyon_state = FORWARD;
+                        inCanyon = 1;
                         }
-//                      if (!_RB8) { // right side detects a wall
-//                        goBackwards(READJUST);
-//                        resetDefaultMotors();
-//                        turnLeft(READJUST);
-//                        resetDefaultMotors();
-//                        }
-//                      if (!_RB15) { // left side detects a wall
-//                        goBackwards(READJUST);
-//                        resetDefaultMotors();
-//                        turnRight(READJUST);
-//                        resetDefaultMotors();
-//                        }
+                      if (!_RB8) { // right side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnLeft(READJUST);
+                        resetDefaultMotors();
+                        }
+                      if (!_RB15) { // left side detects a wall
+                        goBackwards(READJUST);
+                        resetDefaultMotors();
+                        turnRight(READJUST);
+                        resetDefaultMotors();
+                        }
                       if (steps > stepsThreshold) {
                           // return to forward
                         stepsThreshold = 0;
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                       }
-                      break;    
-                
+                      break;  
                
-                if (!_RB8) { // right side detects a wall
-                    goBackwards(READJUST);
-                    resetDefaultMotors();
-                    turnLeft(READJUST);
-                    resetDefaultMotors();
-                }
-                if (!_RB15) { // left side detects a wall
-                    goBackwards(READJUST);
-                    resetDefaultMotors();
-                    turnRight(READJUST);
-                    resetDefaultMotors();
-                }
-                      
-                }
-//                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) {
-//                    state = CHECKLINE;
-//                    TMR1 = 0;
- //               _TCKPS = 0b11;
-//                    _TON = 1;
+//                if (!_RB8) { // right side detects a wall
+//                    goBackwards(READJUST);
+//                    resetDefaultMotors();
+//                    turnLeft(READJUST);
+//                    resetDefaultMotors();
 //                }
+//                if (!_RB15) { // left side detects a wall
+//                    goBackwards(READJUST);
+//                    resetDefaultMotors();
+//                    turnRight(READJUST);
+//                    resetDefaultMotors();
+//                }
+//                      
+                }
+                if (QRDLEFT > qrdBlackThreshold|| QRDRIGHT > qrdBlackThreshold) {
+//                    if(inCanyon == 1){
+                        state = CHECKLINE;
+                        TMR1 = 0;
+                        _TCKPS = 0b11;
+                        _TON = 1;
+//                    }
+                }
 //                break;  
             case CHECKLINE:
                 if(QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//both see white
                     _TON = 0;
-                    if(TMR1 > 100*TIMERSCALER){
-                        forwardAdjust(145);
-                        rightPivot(PIVOTNINETY);
-                        resetDefaultMotors();
+                    if(TMR1 > lineTime && inCanyon == 1 ){
+                        forwardAdjust(500);
+                        leftPivot(PIVOTNINETY);
+                        RMSPEED = RMFWDSPEED;
+                        LMSPEED = LMFWDSPEED;
 //                        delay(2000);
                         state = LINE;
                     }else{
