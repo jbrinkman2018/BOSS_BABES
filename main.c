@@ -261,11 +261,11 @@ int main(void) {
    //------------------------loop-------------------------------
     //start
    
-    hesitate(100);
-    forwardAdjust(1900);
-    leftPivot(PIVOTNINETY);
-    forwardAdjust(25);
-    resetDefaultMotors();
+//    hesitate(100);
+//    forwardAdjust(1900);
+//    leftPivot(PIVOTNINETY);
+//    forwardAdjust(25);
+//    resetDefaultMotors();
                     
     while(1){
         switch (state) {
@@ -316,9 +316,9 @@ int main(void) {
                             switch (numLines){
                                 case 2://collect ball
                                     leftPivot(PIVOTNINETY);
-                                    goBackwards(820);
+                                    goBackwards(860);
                                     hesitate(800);
-                                    forwardAdjust(820);
+                                    forwardAdjust(860);
                                     rightPivot(PIVOTNINETY);
                                     resetDefaultMotors();    
                                 break;
@@ -345,14 +345,14 @@ int main(void) {
                 
                 
                //Equipment servicing ----------------------------------------
-//                if(EQSERVICE >  3000){
-//                    forwardAdjust(200);
-//                    leftPivot(PIVOTNINETY);
-//                    goBackwards(820);
-//                    hesitate(600);
-//                    forwardAdjust(820);
-//                    rightPivot(PIVOTNINETY);
-//                }
+                if(EQSERVICE >  1500){
+                    forwardAdjust(200);
+                    leftPivot(PIVOTNINETY);
+                    goBackwards(860);
+                    hesitate(600);
+                    forwardAdjust(860);
+                    rightPivot(PIVOTNINETY);
+                }
 //                
                 
                 // THE END ---------------------------------------------------  
