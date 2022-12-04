@@ -7,11 +7,12 @@
 #define QRDTASK ADC1BUF0 // pin2 or A0
 #define QRDBALL ADC1BUF14 // pin8 or A3
 #define SATDETECT ADC1BUF10 //pin 17 or B14
-#define EQSERVICE ADC1BUF12 //pin 9 or B4 //SERVICING
+//#define EQSERVICE ADC1BUF12 //pin 9 or B4 //SERVICING
+#define EQSERVICE ADC1BUF15 //try two!
 #define RMSPEED OC1RS
 #define LMSPEED OC2RS
 #define SERVO OC3R
-#define LASER _LATB12
+#define LASER _LATA4
 #define FRONTDISTANCE _RB7
 #define LEFTDISTANCE _RB15
 #define RIGHTDISTANCE _RB8
@@ -22,9 +23,9 @@ int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
 #define SLOWSPEED 2000
 #define TURNSPEED 4500//250
 #define PIVOTNINETY 500//892//2400(jared's val))
-#define SWITCHDIRCOUNT 1910//16800(Jared's val))
-#define READJUST 100 //800(Jared's val))
-#define QRDPSCALE 2.6//0.15
+#define SWITCHDIRCOUNT 1700//16800(Jared's val))
+#define READJUST 170 //800(Jared's val))
+#define QRDPSCALE 2.6//0.15]
 #define QRDISCALE .016//0.001
 #define QRDERRORTHRESHOLD 400 //300
 #define TIMERSCALER 16 //16*256 or the difference between the oscillators times the postscalar
@@ -52,7 +53,10 @@ int qrdRightError = 0;
 long int leftErrorTotal = 0;
 long int rightErrorTotal = 0;
 int lineTime = 300;//50;
-
+int Rcounter1= 0;
+int Rcounter2= 0;
+int Lcounter1= 0;
+int Lcounter2=0;
 //Interrupt Functions -------------------------
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void);
 void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void);
@@ -148,13 +152,17 @@ void Satellite(){
     _OC3IE = 0;
    
     while(1){
-        if(keepServo > 500*16 || keepServo < 300*16){
-            SERVO = 390*16;
-        }else{
-        SERVO = keepServo;
-        }
+        SERVO=260*16;
+//        if(keepServo > 500*16 || keepServo < 300*16){
+//            //SERVO = 390*16;
+//           
+//        }else
+//       // SERVO = keepServo;
+//           
+//        }
 //        delay(10);
-        LASER = 1;//turn on laser
+        hesitate(500);
+        LASER = 0;//turn on laser
     }
 }
 
@@ -165,14 +173,77 @@ void theBeginning() {
     forwardAdjust(25);
     resetDefaultMotors();
 }
+void theEndlinefollow(){//NOTE: this must come after the satellite function
+    hesitate(100);
+    forwardAdjust(100);
+    
+     leftPivot(100); 
+    while(QRDLEFT < 1500){
+      leftPivot(2);
+      hesitate(1);
+      }
+     resetDefaultMotors();
+     hesitate(100);
+      while(QRDRIGHT < 1500){//I added this second while loop so it is able to slowly move to this position and aline itself on the line.
+      leftPivot(2);
+     hesitate(1);
+      }
+     resetDefaultMotors();
+     
+     while(1){
+            while(QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold){
+                            qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+                       qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+                       leftErrorTotal += qrdLeftError;
+                       rightErrorTotal += qrdRightError;
+                       if (qrdLeftError < 0)  leftErrorTotal = 0;
+                       if (qrdRightError < 0) rightErrorTotal = 0;
 
+                       RMSPEED = 2500 + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                       LMSPEED = 2500 + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;   
+            }
+            
+            while(QRDLEFT<qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold && FRONTDISTANCE==0){
+                RMSPEED = 2500;
+                LMSPEED = 2500;
+               _LATA1 = 0;
+               _LATB9 = 0;       
+            } 
+            
+            while(QRDLEFT<qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold && FRONTDISTANCE==1){
+                leftPivot(SWITCHDIRCOUNT);
+                goBackwards(500);
+                LMSPEED = 0;
+                RMSPEED = 0;
+                Satellite();
+                while(1){}
+            }              
+       //                        forwardAdjust(1200);
+//                        hesitate(1000);
+//                            LMSPEED = 0;
+//                            RMSPEED = 0;
+//    rightPivot(675);
+//    goBackwards(1800);
+//    LMSPEED = 0;
+//    RMSPEED = 0;
+//    Satellite();
+//    while(1){}
+     }
+}
 void theEnd(){//NOTE: this must come after the satellite function
-    rightPivot(675);
-    goBackwards(1800);
+    hesitate(100);
+    forwardAdjust(100);
+    
+
+     resetDefaultMotors();
+
+    rightPivot(PIVOTNINETY);
+    goBackwards(2000);
     LMSPEED = 0;
     RMSPEED = 0;
     Satellite();
     while(1){}
+     
 }
 
 void Sampledump(){
@@ -223,18 +294,19 @@ int main(void) {
     _TRISB8 = 1; //right proximity sensor
     _TRISB15 = 1; // left proximity sensor
    _ANSB14 = 1;//LASER DETECTOR
-    _TRISB14 = 1;
-     _ANSB4 = 1;//theseneed to be un commented to use the ir sensor
+    _TRISB14 = 1;   
     _TRISB4 = 1;
+     _ANSB4 = 1;//theseneed to be un commented to use the ir sensor
 
  //initialize variables ---------------------------------------------------------
     int stepsThreshold = 0;//step counter
     int numLines = 0;
-    LASER = 0; //turn off laser
+    LASER = 1; //turn off laser
     int taskDetecting = false;
     int onBlack = false;
     int inCanyon = false;
     int theStart = false;
+    int EQdone = 0;
 
 // Call Configurations -----------------------------------------------------------
     config_ad();
@@ -242,7 +314,7 @@ int main(void) {
     configTimer();
    
 // States ----------------------------------------------------------------
-    enum {LINE, CANYON, END, TASK, CHECKLINE, TESTSERVO} state;
+    enum {LINE, CANYON, END, TASK, CHECKLINE, TESTSERVO, CHECKWALL} state;
     enum {FORWARD,TURNRIGHT} canyon_state;
     canyon_state = FORWARD;
     state = LINE;
@@ -257,23 +329,27 @@ int main(void) {
     _LATA1 = 0;
     _LATB9 = 0;
    _OC1IE=1; //error take this out
-
+   LASER=1;//Our mosfet is backwards right now. 1 is off, 0 is on.
    //------------------------loop-------------------------------
     //start
-   
-//    hesitate(100);
-//    forwardAdjust(1900);
-//    leftPivot(PIVOTNINETY);
-//    forwardAdjust(25);
-//    resetDefaultMotors();
-                    
+//   
+    hesitate(100);
+    forwardAdjust(1900);
+    leftPivot(PIVOTNINETY);
+    forwardAdjust(25);
+    resetDefaultMotors();
+//                    
     while(1){
         switch (state) {
            
             case TESTSERVO://used for testing purposes
-                hesitate(10);
-//                Satellite();
-                LASER = 1;
+                    RMSPEED = 0;
+                     LMSPEED = 0;
+                     LASER = 1;
+                SERVO=260*16;
+//                hesitate(10);
+////                Satellite();
+//                LASER = 1;
                
 //                if(QRDEND > qrdEndThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                    hesitate(200);
@@ -315,19 +391,21 @@ int main(void) {
                         if(steps > stepsThreshold){
                             switch (numLines){
                                 case 2://collect ball
-                                    leftPivot(PIVOTNINETY);
-                                    goBackwards(860);
+                                    leftPivot(PIVOTNINETY-50);
+                                    goBackwards(900);
                                     hesitate(800);
-                                    forwardAdjust(860);
+                                    forwardAdjust(800);
                                     rightPivot(PIVOTNINETY);
                                     resetDefaultMotors();    
                                 break;
                                 case 3://drop ball
+                                    forwardAdjust(50);
                                     hesitate(10);
                                     Sampledump();
-                                    hesitate(400);
+                                    hesitate(800);
                                     SERVO = 375*16;// SEVERO STUFF WE'LL need to figure out
-                                    hesitate(400);
+                                    hesitate(800);
+                                    forwardAdjust(200);
                                 break;
                                 case 4://canyon
 //                                    resetDefaultMotors();
@@ -343,26 +421,35 @@ int main(void) {
                 }
                 
                 
-                
                //Equipment servicing ----------------------------------------
-                if(EQSERVICE >  1500){
+            //    if(EQSERVICE >  1500 && EQdone==0)
+                if(EQSERVICE>1500){
+                    EQdone = 1;
                     forwardAdjust(200);
-                    leftPivot(PIVOTNINETY);
+                    hesitate(100);
+                    goBackwards(100);
+                    leftPivot(PIVOTNINETY-20);
                     goBackwards(860);
                     hesitate(600);
-                    forwardAdjust(860);
-                    rightPivot(PIVOTNINETY);
+                    forwardAdjust(890);
+                    rightPivot(PIVOTNINETY/2);
+                        while(QRDRIGHT < 1500){
+                        rightPivot(2);
+                        hesitate(1);
+                        }
+                    hesitate(100);
+                    forwardAdjust(200);
                 }
 //                
                 
-                // THE END ---------------------------------------------------  
+               //  THE END ---------------------------------------------------  
                 if(QRDEND > qrdEndThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
                      TMR1 = 0;
                     _TCKPS = 0b11;
                      _TON = 1;
                      state = END;
                 }
-                
+//                
             break;
                            
                
@@ -423,57 +510,81 @@ int main(void) {
                     case FORWARD:
                       if (!FRONTDISTANCE){
                         hesitate(100);
+                        goBackwards(200);
                         rightPivot(350);//ERROR shouldn't this be pivot 90?
                         steps=0;
                         stepsThreshold = 1060;
                         resetDefaultMotors();
+                        Rcounter1=0;
+                        Lcounter1=0;
                         canyon_state = TURNRIGHT;
                         }
+                    if (!RIGHTDISTANCE && Rcounter1<5) { // right side detects a wall
+                  //  goBackwards(READJUST);
+                    hesitate(50);
+                    goBackwards(READJUST);
+                    resetDefaultMotors();
+                    leftPivot(READJUST/2);
+                    hesitate(10);
+                    resetDefaultMotors();
+                      Rcounter1++;
+                }
+                if (!LEFTDISTANCE && Lcounter1<5) { // left side detects a wall
+                  //  goBackwards(READJUST);
+                 //   hesitate(10);
+                 //   resetDefaultMotors();
+                    Lcounter1++;
+                    hesitate(50);
+                    goBackwards(READJUST);
+                    rightPivot(READJUST/2);
+                    hesitate(10);
+                    resetDefaultMotors();
+                }
                     break;
                     case TURNRIGHT:
                       if (!FRONTDISTANCE){
-                          goBackwards(READJUST);
+                          goBackwards(200);
                           // full 180 turn and go back forward
                         rightPivot(SWITCHDIRCOUNT/2);
                         resetDefaultMotors();
                         canyon_state = FORWARD;
                         inCanyon = true;
                         }
-//                      if (!RIGHTDISTANCE) { // right side detects a wall
-//                        goBackwards(READJUST);
-//                        resetDefaultMotors();
-//                        turnLeft(READJUST);
-//                        resetDefaultMotors();
-//                        }
-//                      if (!LEFTDISTANCE) { // left side detects a wall
-//                        goBackwards(READJUST);
-//                        resetDefaultMotors();
-//                        turnRight(READJUST);
-//                        resetDefaultMotors();
-//                        }
+                    if (!RIGHTDISTANCE && Rcounter2 < 5) { // right side detects a wall
+                  //  goBackwards(READJUST);
+                   // hesitate(10);
+                  //  resetDefaultMotors();
+                        hesitate(50);
+                        goBackwards(READJUST);
+                        Rcounter2++;
+                    leftPivot(READJUST/2);
+                    hesitate(10);
+                    resetDefaultMotors();
+                }
+                if (!LEFTDISTANCE && Lcounter2 < 5
+                        ) { // left side detects a wall
+                   // goBackwards(READJUST);
+                    hesitate(50);
+                    goBackwards(READJUST);
+                    Lcounter2++;
+                   // resetDefaultMotors();
+                    rightPivot(READJUST/2);
+                    hesitate(10);
+                    resetDefaultMotors();
+                }
                       if (steps > stepsThreshold) {
                           // return to forward
                         stepsThreshold = 0;//error delete
                         resetDefaultMotors();
                         canyon_state = FORWARD;
+                        Rcounter2=0;
+                        Lcounter2=0;
                       }
                       break;  
                
-//                if (!RIGHTDISTANCE) { // right side detects a wall
-//                    goBackwards(READJUST);
-//                    resetDefaultMotors();
-//                    turnLeft(READJUST);
-//                    resetDefaultMotors();
-//                }
-//                if (!LEFTDISTANCE) { // left side detects a wall
-//                    goBackwards(READJUST);
-//                    resetDefaultMotors();
-//                    turnRight(READJUST);
-//                    resetDefaultMotors();
-//                }
 //                      
                 }
-                if (QRDLEFT > qrdBlackThreshold|| QRDRIGHT > qrdBlackThreshold) {
+                if (QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold) {
 //                    if(inCanyon == 1){
                         TMR1 = 0;
                         _TCKPS = 0b11;
@@ -488,19 +599,77 @@ int main(void) {
                     _TON = 0;
                     if(TMR1 > lineTime && inCanyon == true ){
                         forwardAdjust(100);
-                        leftPivot(350);//shouldn't this be pivot ninety
+                        leftPivot(200);//used to be 350, Changed after adding the while loop
+                                while(QRDLEFT < 1500){
+                              leftPivot(2);
+                              hesitate(1);
+                                  }
+                        resetDefaultMotors();
+                        hesitate(100);
+                               while(QRDRIGHT < 1500){//I added this second while loop so it is able to slowly move to this position and aline itself on the line.
+                              leftPivot(2);
+                              hesitate(1);
+                                  }
                         forwardAdjust(100);
+                        
+                        //JAREDS CODE That uses a timer---------------------------
+//                        TMR1 = 0;
+//                        _TCKPS = 0b11;
+//                        _TON = 1;
+                        //------------------------------------------
+                        
 //                        RMSPEED = RMFWDSPEED;
 //                        LMSPEED = LMFWDSPEED;
 //                        delay(2000);
-                        state = LINE;
-                    }else{
+                        stepsThreshold=700;
+                        steps = 0;
+                        state = CHECKWALL;
+                    } 
+                    else {
                         state = CANYON;
                     }
                     TMR1 = 0;
                     _TCKPS = 0b11;
                 }
             break;
+            case CHECKWALL:
+                forwardAdjust(10);
+                
+                if(!FRONTDISTANCE){
+                        goBackwards(300);
+                        rightPivot(SWITCHDIRCOUNT/4);
+                              while(QRDRIGHT < 1500){
+                              rightPivot(2);
+                              hesitate(1);
+                                  }
+                        forwardAdjust(50);
+                        state=LINE;
+                        EQdone=0;
+                }
+                if(steps>stepsThreshold){
+                    state=LINE;
+                    EQdone=0;
+                }
+                
+                //JAREDS CODE THAT USES A TIMER------------------------------
+//                if (TMR1 > 1000) {
+//                    if (!FRONTDISTANCE){
+//                        goBackwards(300);
+//                        rightPivot(SWITCHDIRCOUNT/4);
+//                              while(QRDRIGHT < 1500){
+//                              rightPivot(2);
+//                              hesitate(1);
+//                                  }
+//                        forwardAdjust(50);
+//                        TMR1 = 0;
+//                        _TON = 0;
+//                    }
+//                    state = LINE;
+//                    EQdone = 0;
+//                }
+                //--------------------------------------------
+              
+                break;
         }
     }
     return 0;
