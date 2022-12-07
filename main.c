@@ -19,11 +19,12 @@
 
 int RMFWDSPEED = 1500;//4000000/2000;//clk speed divided by (steps per second*2) equals 120//have /800 for old 313
 int LMFWDSPEED = 1500;//4000000/2000//this is for the old 120 //has been 175
+#define CANYONSPEED 140*16
 #define HIGHSPEED 1500
 #define SLOWSPEED 2000
 #define TURNSPEED 4500//250
 #define PIVOTNINETY 500//892//2400(jared's val))
-#define SWITCHDIRCOUNT 1700//16800(Jared's val))
+#define SWITCHDIRCOUNT 1880//16800(Jared's val))
 #define READJUST 170 //800(Jared's val))
 #define QRDPSCALE 2.6//0.15]
 #define QRDISCALE .016//0.001
@@ -42,6 +43,7 @@ const int SERVOPERIOD = 80000;//5000
 #pragma config SOSCSRC = DIG
 
 //Global variables
+int turning= false;
 int steps = 0;
 int servosteps=0;
 int qrdWhiteThreshold = 3000; // 12 bit adc so 4096 corresponds to 3.3 V. When it reads black it reads in about 1.5V
@@ -124,6 +126,16 @@ void hesitate(int length){
     while(TMR1 < length*TIMERSCALER){ }//lets waste time for a little over a second
     _TON = 0;
 
+}
+
+void beginAdjust(int stepsThreshold){
+   steps = 0;
+  _LATB9 = 0;
+  _LATA1 = 0;
+    while (steps<stepsThreshold){
+        LMSPEED = SLOWSPEED;
+        RMSPEED = SLOWSPEED;
+    }
 }
 
 void resetDefaultMotors(){
@@ -259,9 +271,11 @@ SERVO=375*16;
 //    }    
 //move ball to either side depending on QRD value
 if (QRDBALL < qrdBallThreshold){//if it sees white
-     SERVO=540*16;  //white
+//     SERVO=540*16;  //white
+    SERVO=560*16;
     }else{
-     SERVO=205*16;  //black
+        SERVO=225*16;
+//     SERVO=205*16;  //black
     }
 }
 
@@ -320,8 +334,8 @@ int main(void) {
     state = LINE;
 
 // Set Initial Values ----------------------------------------------------------
-    RMFWDSPEED = SLOWSPEED;
-    LMFWDSPEED = SLOWSPEED;
+    RMFWDSPEED = HIGHSPEED;
+    LMFWDSPEED = HIGHSPEED;
     RMSPEED = RMFWDSPEED;
     LMSPEED = LMFWDSPEED; 
     OC1R = LMFWDSPEED/2;
@@ -333,23 +347,45 @@ int main(void) {
    //------------------------loop-------------------------------
     //start
 //   
+//   hesitate(100);
+//   forwardAdjust(1900);
+//   leftPivot(PIVOTNINETY);
+//   forwardAdjust(25);
+//   resetDefaultMotors();
+   
     hesitate(100);
-    forwardAdjust(1900);
-    leftPivot(PIVOTNINETY);
+    forwardAdjust(400);
+    beginAdjust(1150);
+    forwardAdjust(200);
+    leftPivot(PIVOTNINETY/2);
+    while(QRDLEFT < 1500){
+        leftPivot(2);
+        hesitate(1);
+    }
     forwardAdjust(25);
-    resetDefaultMotors();
+//    resetDefaultMotors();
 //                    
     while(1){
         switch (state) {
            
             case TESTSERVO://used for testing purposes
-                    RMSPEED = 0;
-                     LMSPEED = 0;
-                     LASER = 1;
-                SERVO=260*16;
+//                    RMSPEED = 0;
+//                     LMSPEED = 0;
+//                     LASER = 1;
+//                SERVO=260*16;
 //                hesitate(10);
 ////                Satellite();
 //                LASER = 1;
+                                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+                leftErrorTotal += qrdLeftError;
+                rightErrorTotal += qrdRightError;
+                if (qrdLeftError < 0)  leftErrorTotal = 0;
+                if (qrdRightError < 0) rightErrorTotal = 0;
+               
+                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+                              
                
 //                if(QRDEND > qrdEndThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
 //                    hesitate(200);
@@ -423,7 +459,7 @@ int main(void) {
                 
                //Equipment servicing ----------------------------------------
             //    if(EQSERVICE >  1500 && EQdone==0)
-                if(EQSERVICE>1500){
+                if(EQSERVICE>1500 && EQdone==0){
                     EQdone = 1;
                     forwardAdjust(200);
                     hesitate(100);
@@ -438,7 +474,7 @@ int main(void) {
                         hesitate(1);
                         }
                     hesitate(100);
-                    forwardAdjust(200);
+                    forwardAdjust(100);
                 }
 //                
                 
@@ -468,7 +504,7 @@ int main(void) {
 //                    }
                         LMFWDSPEED = 313*16;
                         RMFWDSPEED = 313*16;//error
-                        stepsThreshold = 750;//how far the bot goes to pass 4 lines, abt 1/3 a block
+                        stepsThreshold = 850;//how far the bot goes to pass 4 lines, abt 1/3 a block
                         steps = 0;//reset
                         taskDetecting = true;
                         numLines = 1;
@@ -504,83 +540,98 @@ int main(void) {
             break;
                
             case CANYON:
-                LMSPEED = 200*16;
-                RMSPEED = 200*16;
                 switch(canyon_state) {
                     case FORWARD:
                       if (!FRONTDISTANCE){
+                          turning=true;
                         hesitate(100);
-                        goBackwards(200);
-                        rightPivot(350);//ERROR shouldn't this be pivot 90?
+//                        goBackwards(400);
+                        rightPivot(440);//ERROR shouldn't this be pivot 90?
                         steps=0;
                         stepsThreshold = 1060;
-                        resetDefaultMotors();
+                        forwardAdjust(100);
                         Rcounter1=0;
                         Lcounter1=0;
+                        turning=false;
                         canyon_state = TURNRIGHT;
                         }
-                    if (!RIGHTDISTANCE && Rcounter1<5) { // right side detects a wall
+                      else if (!RIGHTDISTANCE && turning==false) { // right side detects a wall
                   //  goBackwards(READJUST);
-                    hesitate(50);
-                    goBackwards(READJUST);
-                    resetDefaultMotors();
-                    leftPivot(READJUST/2);
-                    hesitate(10);
-                    resetDefaultMotors();
+                        LMSPEED = 0;
+//                    hesitate(50);
+//                    goBackwards(READJUST);
+//                    resetDefaultMotors();
+//                    leftPivot(READJUST/4);
+//                    hesitate(10);
+//                    resetDefaultMotors();
                       Rcounter1++;
                 }
-                if (!LEFTDISTANCE && Lcounter1<5) { // left side detects a wall
+                      else if (!LEFTDISTANCE && turning==false) { // left side detects a wall
                   //  goBackwards(READJUST);
                  //   hesitate(10);
                  //   resetDefaultMotors();
-                    Lcounter1++;
-                    hesitate(50);
-                    goBackwards(READJUST);
-                    rightPivot(READJUST/2);
-                    hesitate(10);
-                    resetDefaultMotors();
-                }
+//                    Lcounter1++;
+//                    hesitate(50);
+//                    goBackwards(READJUST);
+//                    rightPivot(READJUST/4);
+//                    hesitate(10);
+//                    resetDefaultMotors();
+                          RMSPEED = 0;
+                } 
+                      else {
+                        LMSPEED = CANYONSPEED;
+                        RMSPEED = CANYONSPEED;
+                      }
                     break;
                     case TURNRIGHT:
                       if (!FRONTDISTANCE){
-                          goBackwards(200);
+                          turning=true;
+//                          goBackwards(200);
                           // full 180 turn and go back forward
-                        rightPivot(SWITCHDIRCOUNT/2);
-                        resetDefaultMotors();
+                          hesitate(100);
+                        rightPivot((SWITCHDIRCOUNT/2)-20);
+                        forwardAdjust(100);
                         canyon_state = FORWARD;
+                        turning=false;
                         inCanyon = true;
                         }
-                    if (!RIGHTDISTANCE && Rcounter2 < 5) { // right side detects a wall
+                      else if (!RIGHTDISTANCE && turning == false) { // right side detects a wall
                   //  goBackwards(READJUST);
                    // hesitate(10);
                   //  resetDefaultMotors();
-                        hesitate(50);
-                        goBackwards(READJUST);
-                        Rcounter2++;
-                    leftPivot(READJUST/2);
-                    hesitate(10);
-                    resetDefaultMotors();
+//                        hesitate(50);
+//                        goBackwards(READJUST);
+//                        Rcounter2++;
+//                    leftPivot(READJUST/4);
+//                    hesitate(10);
+//                    resetDefaultMotors();
+                          LMSPEED = 0;
                 }
-                if (!LEFTDISTANCE && Lcounter2 < 5
+                      else if (!LEFTDISTANCE && turning == false
                         ) { // left side detects a wall
                    // goBackwards(READJUST);
-                    hesitate(50);
-                    goBackwards(READJUST);
-                    Lcounter2++;
-                   // resetDefaultMotors();
-                    rightPivot(READJUST/2);
-                    hesitate(10);
-                    resetDefaultMotors();
+//                    hesitate(50);
+//                    goBackwards(READJUST);
+//                    Lcounter2++;
+//                   // resetDefaultMotors();
+//                    rightPivot(READJUST/4);
+//                    hesitate(10);
+//                    resetDefaultMotors();
+                          RMSPEED = 0;
                 }
-                      if (steps > stepsThreshold) {
+                    else {
+                        LMSPEED = CANYONSPEED;
+                        RMSPEED = CANYONSPEED;
+                    }
+                    if (steps > stepsThreshold) {
                           // return to forward
-                        stepsThreshold = 0;//error delete
-                        resetDefaultMotors();
+ //                       stepsThreshold = 0;//error delete
+//                        resetDefaultMotors();
                         canyon_state = FORWARD;
                         Rcounter2=0;
                         Lcounter2=0;
-                      }
-                      break;  
+                    }
+                    break;  
                
 //                      
                 }
@@ -598,7 +649,7 @@ int main(void) {
                 if(QRDLEFT < qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//both see white
                     _TON = 0;
                     if(TMR1 > lineTime && inCanyon == true ){
-                        forwardAdjust(100);
+                        forwardAdjust(150);
                         leftPivot(200);//used to be 350, Changed after adding the while loop
                                 while(QRDLEFT < 1500){
                               leftPivot(2);
@@ -610,7 +661,7 @@ int main(void) {
                               leftPivot(2);
                               hesitate(1);
                                   }
-                        forwardAdjust(100);
+                        forwardAdjust(20);
                         
                         //JAREDS CODE That uses a timer---------------------------
 //                        TMR1 = 0;
@@ -633,7 +684,17 @@ int main(void) {
                 }
             break;
             case CHECKWALL:
-                forwardAdjust(10);
+//                forwardAdjust(10);
+                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+                leftErrorTotal += qrdLeftError;
+                rightErrorTotal += qrdRightError;
+                if (qrdLeftError < 0)  leftErrorTotal = 0;
+                if (qrdRightError < 0) rightErrorTotal = 0;
+               
+                RMSPEED = SLOWSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                LMSPEED = SLOWSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+                
                 
                 if(!FRONTDISTANCE){
                         goBackwards(300);
