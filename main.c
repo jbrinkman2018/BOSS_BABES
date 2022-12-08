@@ -148,13 +148,13 @@ void resetDefaultMotors(){
 
 void Satellite(){
     _OC3IE = 1;
-    SERVO = 260*16;//I added the 16 because we switched the occilator(8Mhz))
-    servosteps = 260*16;
+    SERVO = 270*16;//I added the 16 because we switched the occilator(8Mhz)) //I like 270 as a height
+    servosteps = 270*16;
     int keepServo = 0;
     int maxIR = 0;
     
     //increment servo and read in the IR values
-    while(servosteps < 540*16){
+    while(servosteps < 460*16){
         if(SATDETECT > maxIR){
             keepServo = SERVO;
             maxIR = SATDETECT;
@@ -164,99 +164,74 @@ void Satellite(){
     _OC3IE = 0;
    
     while(1){
-        SERVO=260*16;
-//        if(keepServo > 500*16 || keepServo < 300*16){
-//            //SERVO = 390*16;
-//           
-//        }else
-//       // SERVO = keepServo;
-//           
+//        if(keepServo > 360*16 || keepServo < 300*16){
+//            SERVO = 540*16;
+//        }else{
+            SERVO = keepServo;
 //        }
-//        delay(10);
-        hesitate(500);
+        hesitate(250);
         LASER = 0;//turn on laser
     }
 }
 
-void theBeginning() {
-    hesitate(100);
-    forwardAdjust(1900);
-    leftPivot(PIVOTNINETY);
-    forwardAdjust(25);
-    resetDefaultMotors();
-}
-void theEndlinefollow(){//NOTE: this must come after the satellite function
-    hesitate(100);
-    forwardAdjust(100);
+//void theBeginning() {
+//    hesitate(100);
+//    forwardAdjust(1900);
+//    leftPivot(PIVOTNINETY);
+//    forwardAdjust(25);
+//    resetDefaultMotors();
+//}
+void theEndLineFollow(){//NOTE: this must come after the satellite function
+    //reset directions
     
-     leftPivot(100); 
-    while(QRDLEFT < 1500){
-      leftPivot(2);
-      hesitate(1);
-      }
-     resetDefaultMotors();
-     hesitate(100);
-      while(QRDRIGHT < 1500){//I added this second while loop so it is able to slowly move to this position and aline itself on the line.
-      leftPivot(2);
-     hesitate(1);
-      }
-     resetDefaultMotors();
-     
-     while(1){
-            while(QRDLEFT > qrdBlackThreshold || QRDRIGHT > qrdBlackThreshold){
-                            qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
-                       qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
-                       leftErrorTotal += qrdLeftError;
-                       rightErrorTotal += qrdRightError;
-                       if (qrdLeftError < 0)  leftErrorTotal = 0;
-                       if (qrdRightError < 0) rightErrorTotal = 0;
+        resetDefaultMotors();
+        LMFWDSPEED = CANYONSPEED;
+        RMFWDSPEED = CANYONSPEED;
+                steps = 0;
 
-                       RMSPEED = 2500 + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
-                       LMSPEED = 2500 + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;   
-            }
-            
-            while(QRDLEFT<qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold && FRONTDISTANCE==0){
-                RMSPEED = 2500;
-                LMSPEED = 2500;
-               _LATA1 = 0;
-               _LATB9 = 0;       
-            } 
-            
-            while(QRDLEFT<qrdBlackThreshold && QRDRIGHT<qrdBlackThreshold && FRONTDISTANCE==1){
-                leftPivot(SWITCHDIRCOUNT);
-                goBackwards(500);
-                LMSPEED = 0;
-                RMSPEED = 0;
-                Satellite();
-                while(1){}
-            }              
-       //                        forwardAdjust(1200);
-//                        hesitate(1000);
-//                            LMSPEED = 0;
-//                            RMSPEED = 0;
-//    rightPivot(675);
-//    goBackwards(1800);
+    while(steps < 1950){//Until it sees the back, line follow
+        qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
+        qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
+        leftErrorTotal += qrdLeftError;
+        rightErrorTotal += qrdRightError;
+        if (qrdLeftError < 0)  leftErrorTotal = 0;
+        if (qrdRightError < 0) rightErrorTotal = 0;
+
+                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
+                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
+        
+//        if(QRDRIGHT > qrdBlackThreshold && QRDLEFT < qrdBlackThreshold){//right see black
+//            RMSPEED = 0; 
+//        }
+//        else{
+//            RMSPEED = 4000;
+//        }
+//        if(QRDLEFT > qrdBlackThreshold && QRDRIGHT < qrdBlackThreshold){//left see black
+//            LMSPEED = 0;
+//        }
+//        else{
+//            LMSPEED = 4000;
+//        }
+    }
+    rightPivot(PIVOTNINETY*2+190);
+    hesitate(10);
+    Satellite();
+}
+//void theEnd(){//NOTE: this must come after the satellite function
+//    hesitate(100);
+//    forwardAdjust(100);
+//    
+//
+//     resetDefaultMotors();
+//
+//    rightPivot(PIVOTNINETY);
+//    goBackwards(2000);
 //    LMSPEED = 0;
 //    RMSPEED = 0;
 //    Satellite();
 //    while(1){}
-     }
-}
-void theEnd(){//NOTE: this must come after the satellite function
-    hesitate(100);
-    forwardAdjust(100);
-    
-
-     resetDefaultMotors();
-
-    rightPivot(PIVOTNINETY);
-    goBackwards(2000);
-    LMSPEED = 0;
-    RMSPEED = 0;
-    Satellite();
-    while(1){}
-     
-}
+//     
+//}
 
 void Sampledump(){
 //    int right = 1;
@@ -342,17 +317,10 @@ int main(void) {
     OC2R = RMFWDSPEED/2;
     _LATA1 = 0;
     _LATB9 = 0;
-   _OC1IE=1; //error take this out
-   LASER=1;//Our mosfet is backwards right now. 1 is off, 0 is on.
+    _OC1IE = 1; //error take this out
+    LASER = 1;//Our mosfet is backwards right now. 1 is off, 0 is on.
    //------------------------loop-------------------------------
     //start
-//   
-//   hesitate(100);
-//   forwardAdjust(1900);
-//   leftPivot(PIVOTNINETY);
-//   forwardAdjust(25);
-//   resetDefaultMotors();
-   
     hesitate(100);
     forwardAdjust(400);
     beginAdjust(1150);
@@ -363,33 +331,22 @@ int main(void) {
         hesitate(1);
     }
     forwardAdjust(25);
-//    resetDefaultMotors();
-//                    
+    
     while(1){
         switch (state) {
            
             case TESTSERVO://used for testing purposes
-//                    RMSPEED = 0;
-//                     LMSPEED = 0;
-//                     LASER = 1;
-//                SERVO=260*16;
+                RMSPEED = 5000;
+                LMSPEED = 5000;
+//                    
+//                forwardAdjust(250);
+//                resetDefaultMotors();
+//                rightPivot(PIVOTNINETY);
+//                goBackwards(100);
+//                hesitate(100);
+                theEndLineFollow();
 //                hesitate(10);
-////                Satellite();
-//                LASER = 1;
-                                qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
-                qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
-                leftErrorTotal += qrdLeftError;
-                rightErrorTotal += qrdRightError;
-                if (qrdLeftError < 0)  leftErrorTotal = 0;
-                if (qrdRightError < 0) rightErrorTotal = 0;
-               
-                RMSPEED = RMFWDSPEED + QRDRIGHT*QRDPSCALE + rightErrorTotal*QRDISCALE;
-                LMSPEED = LMFWDSPEED + QRDLEFT*QRDPSCALE + leftErrorTotal*QRDISCALE;
-                              
-               
-//                if(QRDEND > qrdEndThreshold){ //END sees black ERROR: THIS QRD SHOULD RESPOND TO THRESHOLD BUT IT ISNT
-//                    hesitate(200);
-//                }else{resetDefaultMotors();}
+//                Satellite();
             break;    
            
             case LINE:
@@ -458,7 +415,7 @@ int main(void) {
                 
                 
                //Equipment servicing ----------------------------------------
-            //    if(EQSERVICE >  1500 && EQdone==0)
+//                if(EQSERVICE >  1500 && EQdone==0)
                 if(EQSERVICE>1500 && EQdone==0){
                     EQdone = 1;
                     forwardAdjust(200);
@@ -527,7 +484,9 @@ int main(void) {
                     if(TMR1 > lineTime){
                         steps = 0;
 //                        if (inCanyon == true){
-                            theEnd();
+                        hesitate(50);
+                        leftPivot(PIVOTNINETY);
+                            theEndLineFollow();
 //                        }
 //                        else {
 //                            theBeginning();
@@ -746,7 +705,7 @@ void __attribute__((interrupt, no_auto_psv)) _OC3Interrupt(void){
     _OC3IF = 0; //take down flag
 //    delayCount++;
 //    if(delayCount > 2){
-        servosteps ++;
+        servosteps = servosteps+2;
         SERVO = servosteps;
 //        delayCount = 0;
 //    }
