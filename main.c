@@ -189,7 +189,7 @@ void theEndLineFollow(){//NOTE: this must come after the satellite function
         RMFWDSPEED = CANYONSPEED;
                 steps = 0;
 
-    while(steps < 1950){//Until it sees the back, line follow
+    while(steps < 1900){//Until it sees the back, line follow
         qrdRightError = QRDRIGHT - (QRDERRORTHRESHOLD);
         qrdLeftError = QRDLEFT - (QRDERRORTHRESHOLD);
         leftErrorTotal += qrdLeftError;
@@ -336,17 +336,9 @@ int main(void) {
         switch (state) {
            
             case TESTSERVO://used for testing purposes
-                RMSPEED = 5000;
-                LMSPEED = 5000;
-//                    
-//                forwardAdjust(250);
-//                resetDefaultMotors();
-//                rightPivot(PIVOTNINETY);
-//                goBackwards(100);
-//                hesitate(100);
+                RMSPEED=0;
+                LMSPEED=0;
                 theEndLineFollow();
-//                hesitate(10);
-//                Satellite();
             break;    
            
             case LINE:
@@ -392,7 +384,7 @@ int main(void) {
                                     resetDefaultMotors();    
                                 break;
                                 case 3://drop ball
-                                    forwardAdjust(50);
+                                    forwardAdjust(35); //was 50
                                     hesitate(10);
                                     Sampledump();
                                     hesitate(800);
@@ -421,7 +413,7 @@ int main(void) {
                     forwardAdjust(200);
                     hesitate(100);
                     goBackwards(100);
-                    leftPivot(PIVOTNINETY-20);
+                    leftPivot(PIVOTNINETY);
                     goBackwards(860);
                     hesitate(600);
                     forwardAdjust(890);
